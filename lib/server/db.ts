@@ -1,8 +1,12 @@
 import 'server-only'
+import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@/generated/prisma/client'
 
-const globalForPrisma = globalThis as typeof globalThis & { attainlyPrisma?: PrismaClient }
+const globalForPrisma = globalThis as typeof globalThis & {
+  attainlyPool?: Pool
+  attainlyPrisma?: PrismaClient
+}
 
 function getPrismaClient(): PrismaClient {
   if (globalForPrisma.attainlyPrisma) return globalForPrisma.attainlyPrisma
@@ -12,8 +16,19 @@ function getPrismaClient(): PrismaClient {
     throw new Error('DATABASE_URL is required to connect to Postgres.')
   }
 
+  const pool =
+    globalForPrisma.attainlyPool ??
+    new Pool({
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    })
+
+  if (process.env.NODE_ENV !== 'production') globalForPrisma.attainlyPool = pool
+
   const client = new PrismaClient({
-    adapter: new PrismaPg({ connectionString }),
+    adapter: new PrismaPg(pool),
   })
 
   if (process.env.NODE_ENV !== 'production') globalForPrisma.attainlyPrisma = client
