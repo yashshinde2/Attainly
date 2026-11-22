@@ -1,0 +1,446 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EducationLevel {
+  TENTH
+  TWELFTH
+  DEGREE
+  OTHER
+}
+
+enum AchievementCategory {
+  TECHNICAL
+  NON_TECHNICAL
+  SPORTS
+  CULTURAL
+}
+
+enum AchievementStatus {
+  PARTICIPATION
+  WINNER
+}
+
+enum ExperienceType {
+  TEACHING
+  INDUSTRY
+}
+
+enum EventParticipationRole {
+  PARTICIPANT
+  WINNER
+  ORGANIZER
+}
+
+model Institution {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  departments Department[]
+  courses     Course[]
+  users       User[]
+  roles       Role[]
+  permissions Permission[]
+  events      Event[]
+  studentProfiles StudentProfile[]
+  studentEducation StudentEducation[]
+  achievements Achievement[]
+  studentCertifications StudentCertification[]
+  studentResearchPapers StudentResearchPaper[]
+  studentPatents StudentPatent[]
+  studentProjects StudentProject[]
+  studentInternships StudentInternship[]
+  facultyProfiles FacultyProfile[]
+  facultyEducation FacultyEducation[]
+  facultyExperiences FacultyExperience[]
+  facultyCertifications FacultyCertification[]
+  facultyResearchPapers FacultyResearchPaper[]
+  facultyPatents FacultyPatent[]
+  eventParticipations EventParticipation[]
+}
+
+model Department {
+  id            String      @default(cuid())
+  institutionId String @map("institution_id")
+  name          String
+  code          String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courses       Course[]
+  events        Event[]
+
+  @@id([institutionId, id])
+  @@unique([institutionId, code])
+  @@index([institutionId, name])
+}
+
+model Course {
+  id            String      @default(cuid())
+  institutionId String @map("institution_id")
+  departmentId  String
+  name          String
+  code          String
+  description   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  department    Department  @relation(fields: [institutionId, departmentId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, code])
+  @@index([institutionId, departmentId])
+}
+
+model User {
+  id            String           @default(cuid())
+  institutionId String @map("institution_id")
+  roleId        String
+  email         String
+  passwordHash  String?
+  firstName     String
+  lastName      String
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  institution   Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  role          Role             @relation(fields: [institutionId, roleId], references: [institutionId, id], onDelete: Restrict)
+  student       StudentProfile?
+  faculty       FacultyProfile?
+  eventEntries  EventParticipation[]
+
+  @@id([institutionId, id])
+  @@unique([institutionId, email])
+  @@index([institutionId, roleId, isActive])
+}
+
+model Role {
+  id            String           @default(cuid())
+  institutionId String @map("institution_id")
+  name          String
+  key           String
+  createdAt     DateTime         @default(now())
+  institution   Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  users         User[]
+  rolePermissions RolePermission[]
+
+  @@id([institutionId, id])
+  @@unique([institutionId, key])
+}
+
+model Permission {
+  id            String           @default(cuid())
+  institutionId String @map("institution_id")
+  key           String
+  description   String?
+  createdAt     DateTime         @default(now())
+  institution   Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+
+  @@id([institutionId, id])
+  @@unique([institutionId, key])
+}
+
+model RolePermission {
+  institutionId String @map("institution_id")
+  roleId        String
+  permissionId  String
+  createdAt     DateTime   @default(now())
+  role          Role       @relation(fields: [institutionId, roleId], references: [institutionId, id], onDelete: Cascade)
+  permission    Permission @relation(fields: [institutionId, permissionId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, roleId, permissionId])
+  @@index([institutionId, permissionId])
+}
+
+model StudentProfile {
+  id            String              @default(cuid())
+  institutionId String @map("institution_id")
+  userId        String
+  dateOfBirth   DateTime?
+  phone         String?
+  address       String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  institution   Institution         @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user          User                @relation(fields: [institutionId, userId], references: [institutionId, id], onDelete: Cascade)
+  education     StudentEducation[]
+  achievements  Achievement[]
+  certifications StudentCertification[]
+  researchPapers StudentResearchPaper[]
+  patents       StudentPatent[]
+  projects      StudentProject[]
+  internships   StudentInternship[]
+
+  @@id([institutionId, id])
+  @@unique([institutionId, userId])
+  @@index([institutionId, createdAt])
+}
+
+model StudentEducation {
+  id              String         @default(cuid())
+  institutionId   String @map("institution_id")
+  studentProfileId String
+  level           EducationLevel
+  institutionName String
+  boardOrUniversity String?
+  courseOrStream  String?
+  score           String?
+  startYear       Int?
+  endYear         Int?
+  createdAt       DateTime       @default(now())
+  institution     Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentProfile  StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, studentProfileId, level])
+}
+
+model Achievement {
+  id               String              @default(cuid())
+  institutionId    String @map("institution_id")
+  studentProfileId String
+  title            String
+  category         AchievementCategory
+  status           AchievementStatus
+  description      String?
+  awardedAt        DateTime?
+  createdAt        DateTime            @default(now())
+  institution      Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile     @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, studentProfileId, category, status])
+}
+
+model StudentCertification {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  studentProfileId String
+  name             String
+  issuer           String?
+  fileUrl          String?
+  issuedAt         DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, studentProfileId])
+}
+
+model StudentResearchPaper {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  studentProfileId String
+  title            String
+  publication      String?
+  doi              String?
+  fileUrl          String?
+  publishedAt      DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, studentProfileId])
+}
+
+model StudentPatent {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  studentProfileId String
+  title            String
+  patentNumber     String?
+  status           String?
+  fileUrl          String?
+  filedAt          DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, studentProfileId])
+}
+
+model StudentProject {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  studentProfileId String
+  title            String
+  description      String?
+  repositoryUrl    String?
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, studentProfileId])
+}
+
+model StudentInternship {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  studentProfileId String
+  organization     String
+  role             String?
+  description      String?
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, studentProfileId])
+}
+
+model FacultyProfile {
+  id            String               @default(cuid())
+  institutionId String @map("institution_id")
+  userId        String
+  phone         String?
+  office        String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  institution   Institution          @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user          User                 @relation(fields: [institutionId, userId], references: [institutionId, id], onDelete: Cascade)
+  education     FacultyEducation[]
+  experiences   FacultyExperience[]
+  certifications FacultyCertification[]
+  researchPapers FacultyResearchPaper[]
+  patents       FacultyPatent[]
+
+  @@id([institutionId, id])
+  @@unique([institutionId, userId])
+}
+
+model FacultyEducation {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  facultyProfileId String
+  qualification    String
+  institutionName  String
+  fieldOfStudy     String?
+  yearCompleted    Int?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, facultyProfileId])
+}
+
+model FacultyExperience {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  facultyProfileId String
+  type             ExperienceType
+  organization     String
+  title            String
+  description      String?
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, facultyProfileId, type])
+}
+
+model FacultyCertification {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  facultyProfileId String
+  name             String
+  issuer           String?
+  fileUrl          String?
+  issuedAt         DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, facultyProfileId])
+}
+
+model FacultyResearchPaper {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  facultyProfileId String
+  title            String
+  publication      String?
+  doi              String?
+  fileUrl          String?
+  publishedAt      DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, facultyProfileId])
+}
+
+model FacultyPatent {
+  id               String         @default(cuid())
+  institutionId    String @map("institution_id")
+  facultyProfileId String
+  title            String
+  patentNumber     String?
+  status           String?
+  fileUrl          String?
+  filedAt          DateTime?
+  createdAt        DateTime       @default(now())
+  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, facultyProfileId])
+}
+
+model Event {
+  id            String      @default(cuid())
+  institutionId String @map("institution_id")
+  departmentId  String
+  title         String
+  description   String?
+  type          String
+  startsAt      DateTime
+  endsAt        DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  department    Department  @relation(fields: [institutionId, departmentId], references: [institutionId, id], onDelete: Cascade)
+  participation EventParticipation[]
+
+  @@id([institutionId, id])
+  @@index([institutionId, departmentId, startsAt])
+}
+
+model EventParticipation {
+  id            String                 @default(cuid())
+  institutionId String @map("institution_id")
+  eventId       String
+  userId        String
+  role          EventParticipationRole
+  position      String?
+  certificateUrl String?
+  createdAt     DateTime               @default(now())
+  institution   Institution           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  event         Event                  @relation(fields: [institutionId, eventId], references: [institutionId, id], onDelete: Cascade)
+  user          User                   @relation(fields: [institutionId, userId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, eventId, userId])
+  @@index([institutionId, eventId, role])
+}
