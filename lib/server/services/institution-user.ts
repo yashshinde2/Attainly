@@ -8,7 +8,14 @@ export type CreateInstitutionUserInput = z.infer<typeof userRowSchema>
 export interface InstitutionUserRepository<TUser, TRole> {
   listUsers(input: { institutionId: string }): Promise<TUser[]>
   listRoles(input: { institutionId: string }): Promise<TRole[]>
-  createUser(input: { institutionId: string; data: CreateInstitutionUserInput }): Promise<TUser>
+  createUser(input: {
+    institutionId: string
+    data: CreateInstitutionUserInput
+  }): Promise<{ user: TUser; temporaryPassword: string }>
+  resetPassword(input: {
+    institutionId: string
+    userId: string
+  }): Promise<{ user: TUser; temporaryPassword: string }>
 }
 
 function resolveUserManagePermission(principal: AuthenticatedPrincipal): string {
@@ -37,8 +44,20 @@ export async function createInstitutionUser<TUser, TRole>(input: {
   principal: AuthenticatedPrincipal
   repository: InstitutionUserRepository<TUser, TRole>
   data: unknown
-}): Promise<TUser> {
+}): Promise<{ user: TUser; temporaryPassword: string }> {
   requirePermission(input.principal, resolveUserManagePermission(input.principal))
   const data = userRowSchema.parse(input.data)
   return input.repository.createUser({ institutionId: input.principal.institutionId, data })
+}
+
+export async function resetInstitutionUserPassword<TUser, TRole>(input: {
+  principal: AuthenticatedPrincipal
+  repository: InstitutionUserRepository<TUser, TRole>
+  userId: string
+}): Promise<{ user: TUser; temporaryPassword: string }> {
+  requirePermission(input.principal, resolveUserManagePermission(input.principal))
+  return input.repository.resetPassword({
+    institutionId: input.principal.institutionId,
+    userId: input.userId,
+  })
 }

@@ -11,6 +11,7 @@ export interface AuthenticatedAccount {
   roleId: string
   roleKey: string
   permissions: string[]
+  mustChangePassword: boolean
 }
 
 export interface CredentialAuthenticator {
@@ -46,6 +47,7 @@ export function createAuthOptions(authenticator: CredentialAuthenticator, secret
             roleId: account.roleId,
             roleKey: account.roleKey,
             permissions: account.permissions,
+            mustChangePassword: account.mustChangePassword,
           }
         },
       }),
@@ -59,6 +61,7 @@ export function createAuthOptions(authenticator: CredentialAuthenticator, secret
           token.roleId = account.roleId
           token.roleKey = account.roleKey
           token.permissions = account.permissions ?? []
+          token.mustChangePassword = Boolean(account.mustChangePassword)
         }
         return token
       },
@@ -69,6 +72,7 @@ export function createAuthOptions(authenticator: CredentialAuthenticator, secret
           session.user.roleId = typeof token.roleId === 'string' ? token.roleId : ''
           session.user.roleKey = typeof token.roleKey === 'string' ? token.roleKey : ''
           session.user.permissions = Array.isArray(token.permissions) ? token.permissions.filter((value): value is string => typeof value === 'string') : []
+          session.user.mustChangePassword = Boolean(token.mustChangePassword)
         }
         return session
       },

@@ -82,6 +82,34 @@ The role-based permission system controls access to all repository actions:
 - `department:manage`, `course:manage`, `user:manage`, `user:import`
 - `document:upload`, `document:read_own`
 
+## User Account Provisioning & Security
+
+Attainly is an invite-only institutional application. **There is no public user registration / signup route, and no public signup route should ever be added.** All accounts are strictly provisioned by Institution Administrators.
+
+### Provisioning Lifecycle
+1. **Single User Creation**:
+   - Administrators create a user by specifying first name, last name, institutional email, and assigning a role (`STUDENT`, `FACULTY`, or `INSTITUTION_ADMIN`).
+   - A cryptographically random temporary password (`crypto.randomBytes`) is generated, securely hashed via `bcryptjs` (cost 12), and stored in `passwordHash`.
+   - The user's account is flagged with `mustChangePassword: true`.
+   - The temporary password is provided only once to the administrator via a copyable reveal banner. It is never logged or stored in plaintext.
+
+2. **Bulk Provisioning via CSV**:
+   - Administrators upload a `.csv` file with headers: `email,firstName,lastName,roleKey`.
+   - Each valid entry is provisioned with an individual cryptographically secure temporary password and initialized profile.
+   - Existing email collisions are skipped without failing the batch.
+   - The admin console outputs an interactive table of provisioned accounts with individual copy buttons and affords both "Download CSV" and "Copy All" for secure distribution.
+
+3. **Enforced First-Login Password Change**:
+   - Middleware inspects the user's authentication token on every protected route.
+   - If `mustChangePassword: true`, the user is intercepted and gated at `/change-password`.
+   - The user must provide a new password (min. 8 characters with strength checking).
+   - Upon submission, the new password is hashed, `mustChangePassword` is cleared to `false`, the session token is re-issued, and the user is redirected to their dedicated portal.
+
+4. **Administrator Password Reset**:
+   - Administrators can reset any user's password directly from the Institution Users directory.
+   - A fresh cryptographically random temporary password is generated and `mustChangePassword: true` is re-enabled.
+   - The new temporary password is surfaced via a one-time reveal modal for direct handover to the user.
+
 ## Demo Accounts
 
 The database seed provides three pre-configured accounts:

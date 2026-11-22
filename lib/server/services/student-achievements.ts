@@ -48,6 +48,7 @@ export async function addOwnAchievement<TAchievement>(input: {
         studentProfileId: profile.id,
         category: data.category,
         title: { equals: data.title, mode: 'insensitive' },
+        verificationStatus: { not: 'REJECTED' },
       },
     })
     if (existing) {

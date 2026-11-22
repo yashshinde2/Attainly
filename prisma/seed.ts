@@ -226,8 +226,8 @@ async function main() {
     if (!roleId) throw new Error(`Missing role definition: ${roleKey}`)
     const user = await prisma.user.upsert({
       where: { institutionId_email: { institutionId: institution.id, email: demo.email } },
-      update: { ...userData, roleId, passwordHash, isActive: true },
-      create: { institutionId: institution.id, ...userData, roleId, passwordHash },
+      update: { ...userData, roleId, passwordHash, isActive: true, mustChangePassword: false },
+      create: { institutionId: institution.id, ...userData, roleId, passwordHash, mustChangePassword: false },
     })
 
     if (roleKey === 'STUDENT') {

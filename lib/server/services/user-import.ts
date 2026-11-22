@@ -9,6 +9,19 @@ export const userRowSchema = z.object({
   roleKey: z.string().trim().min(1).max(80),
 })
 
+export interface CreatedImportUser {
+  email: string
+  name: string
+  roleKey: string
+  temporaryPassword: string
+}
+
+export interface UserImportResult {
+  count: number
+  createdUsers: CreatedImportUser[]
+  skippedCount: number
+}
+
 const MAX_CSV_BYTES = 2 * 1024 * 1024
 const MAX_IMPORT_ROWS = 1000
 
@@ -59,7 +72,7 @@ export interface UserImportRepository<TResult> {
   }): Promise<TResult>
 }
 
-export async function importUsersFromCsv<TResult>(input: {
+export async function importUsersFromCsv<TResult = UserImportResult>(input: {
   principal: AuthenticatedPrincipal
   repository: UserImportRepository<TResult>
   csv: string

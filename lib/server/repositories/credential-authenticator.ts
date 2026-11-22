@@ -29,6 +29,7 @@ export class PrismaCredentialAuthenticator implements CredentialAuthenticator {
       roleId: user.roleId,
       roleKey: user.role.key,
       permissions: user.role.rolePermissions.map(({ permission }) => permission.key),
+      mustChangePassword: user.mustChangePassword,
     }
   }
 }

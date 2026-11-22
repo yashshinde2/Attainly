@@ -64,11 +64,18 @@ export async function updateOwnStudentProfile<TProfile>(input: {
     }
   }
 
-  return input.repository.upsertByUser({
-    institutionId: input.principal.institutionId,
-    userId: input.principal.userId,
-    data,
-  })
+  try {
+    return await input.repository.upsertByUser({
+      institutionId: input.principal.institutionId,
+      userId: input.principal.userId,
+      data,
+    })
+  } catch (error: any) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      throw new Error(`Enrollment number "${data.enrollmentNumber}" is already in use by another student.`)
+    }
+    throw error
+  }
 }
 
 // ---------------- Education ----------------
@@ -192,6 +199,7 @@ export async function addOwnStudentCertification<TCertification>(input: {
         institutionId: input.principal.institutionId,
         studentProfileId: profile.id,
         name: { equals: data.name, mode: 'insensitive' },
+        verificationStatus: { not: 'REJECTED' },
         ...(data.issuer ? { issuer: { equals: data.issuer, mode: 'insensitive' } } : {}),
       },
     })
