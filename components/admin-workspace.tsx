@@ -1,9 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { useActionState } from 'react'
 import { addDepartment, addUser, type AdminActionState } from '@/app/actions/admin'
 import type { Role } from '@/generated/prisma/client'
 import type { DepartmentWithCourseCount } from '@/lib/server/repositories/department-repository'
+import type { EventWithDetails } from '@/lib/server/repositories/event-repository'
 import type { UserWithRole } from '@/lib/server/repositories/institution-user-repository'
 
 const initialState: AdminActionState = { status: 'idle', message: '' }
@@ -135,13 +137,85 @@ export function AdminWorkspace({
   departments,
   users,
   roles,
+  events = [],
 }: {
   departments: DepartmentWithCourseCount[]
   users: UserWithRole[]
   roles: Role[]
+  events?: EventWithDetails[]
 }) {
   return (
     <div className="mt-8 flex flex-col gap-8">
+      {/* Events Summary Section */}
+      <section aria-labelledby="events-overview-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="events-overview-heading" className="text-lg font-semibold">Institutional Events</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Oversee campus events, symposiums, and participant outcomes.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+              {events.length} {events.length === 1 ? 'event' : 'events'}
+            </span>
+            <Link
+              href="/admin/events"
+              className="rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
+            >
+              Full Event Console &rarr;
+            </Link>
+          </div>
+        </div>
+
+        {events.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="pb-3 pr-4">Event</th>
+                  <th className="pb-3 pr-4">Category</th>
+                  <th className="pb-3 pr-4">Department</th>
+                  <th className="pb-3 pr-4">Participants</th>
+                  <th className="pb-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {events.slice(0, 5).map((evt) => (
+                  <tr key={evt.id} className="transition hover:bg-muted/40">
+                    <td className="py-3 pr-4 font-medium text-foreground">{evt.title}</td>
+                    <td className="py-3 pr-4">
+                      <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                        {evt.type.replaceAll('_', ' ').toLowerCase()}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 text-xs text-muted-foreground">{evt.department.name}</td>
+                    <td className="py-3 pr-4 text-xs font-medium text-muted-foreground">{evt._count?.participation ?? 0}</td>
+                    <td className="py-3">
+                      <Link
+                        href="/admin/events"
+                        className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground hover:opacity-90"
+                      >
+                        Enter results
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-4 py-8 text-center">
+            <p className="text-sm text-muted-foreground">No events recorded yet.</p>
+            <Link
+              href="/admin/events"
+              className="mt-3 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+            >
+              Create first event
+            </Link>
+          </div>
+        )}
+      </section>
       {/* Departments Section */}
       <section aria-labelledby="departments-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-2">

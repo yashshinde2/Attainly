@@ -51,6 +51,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
+## Features & Portals
+
+- **Student Portal (`/student`)**: Maintain personal contact details, track verified extracurricular achievements, view campus events participated in or won, and automatically surface event recognitions directly within the achievements stream.
+- **Faculty Portal (`/faculty`)**: Maintain office contacts, academic qualifications, teaching and industry experiences, research papers, patents, institutional event participation, and certifications.
+- **Institution Admin Console (`/admin`, `/admin/events`)**: Manage academic departments, invite and provision institution users, schedule campus events, and bulk-record participant/winner/organizer outcomes in a single submission.
+
 ## Demo Accounts
 
 The database seed provides three pre-configured accounts:

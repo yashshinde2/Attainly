@@ -7,6 +7,7 @@ import { PrismaFacultyExperienceRepository } from '@/lib/server/repositories/fac
 import { PrismaFacultyCertificationRepository } from '@/lib/server/repositories/faculty-certification-repository'
 import { PrismaFacultyResearchPaperRepository } from '@/lib/server/repositories/faculty-research-paper-repository'
 import { PrismaFacultyPatentRepository } from '@/lib/server/repositories/faculty-patent-repository'
+import { PrismaEventRepository } from '@/lib/server/repositories/event-repository'
 import {
   readOwnFacultyProfile,
   listOwnFacultyEducation,
@@ -15,6 +16,7 @@ import {
   listOwnFacultyResearchPapers,
   listOwnFacultyPatents,
 } from '@/lib/server/services/faculty'
+import { listOwnEventParticipations } from '@/lib/server/services/event'
 
 const profileRepository = new PrismaFacultyProfileRepository()
 const educationRepository = new PrismaFacultyEducationRepository()
@@ -22,16 +24,26 @@ const experienceRepository = new PrismaFacultyExperienceRepository()
 const certificationRepository = new PrismaFacultyCertificationRepository()
 const researchPaperRepository = new PrismaFacultyResearchPaperRepository()
 const patentRepository = new PrismaFacultyPatentRepository()
+const eventRepository = new PrismaEventRepository()
 
 export default async function FacultyPortalPage() {
   const principal = await getCurrentPrincipal()
-  const [profile, education, experiences, certifications, researchPapers, patents] = await Promise.all([
+  const [
+    profile,
+    education,
+    experiences,
+    certifications,
+    researchPapers,
+    patents,
+    participations,
+  ] = await Promise.all([
     readOwnFacultyProfile({ principal, repository: profileRepository }),
     listOwnFacultyEducation({ principal, repository: educationRepository }),
     listOwnFacultyExperiences({ principal, repository: experienceRepository }),
     listOwnFacultyCertifications({ principal, repository: certificationRepository }),
     listOwnFacultyResearchPapers({ principal, repository: researchPaperRepository }),
     listOwnFacultyPatents({ principal, repository: patentRepository }),
+    listOwnEventParticipations({ principal, repository: eventRepository }),
   ])
 
   return (
@@ -45,6 +57,7 @@ export default async function FacultyPortalPage() {
           certifications={certifications}
           researchPapers={researchPapers}
           patents={patents}
+          participations={participations}
         />
       }
     />

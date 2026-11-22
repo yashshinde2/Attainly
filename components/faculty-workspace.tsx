@@ -18,6 +18,7 @@ import type {
   FacultyResearchPaper,
   FacultyPatent,
 } from '@/generated/prisma/client'
+import type { EventParticipationWithEvent } from '@/lib/server/repositories/event-repository'
 
 const initialState: FacultyActionState = { status: 'idle', message: '' }
 const fieldClass =
@@ -413,6 +414,7 @@ export function FacultyWorkspace({
   certifications,
   researchPapers,
   patents,
+  participations = [],
 }: {
   profile: FacultyProfile | null
   education: FacultyEducation[]
@@ -420,7 +422,11 @@ export function FacultyWorkspace({
   certifications: FacultyCertification[]
   researchPapers: FacultyResearchPaper[]
   patents: FacultyPatent[]
+  participations?: EventParticipationWithEvent[]
 }) {
+  const eventRecognitions = participations.filter(
+    (p) => p.role === 'WINNER' || p.role === 'PARTICIPANT',
+  )
   return (
     <div className="mt-8 flex flex-col gap-6">
       {/* Personal Details & Education */}
@@ -476,33 +482,78 @@ export function FacultyWorkspace({
         </div>
         <ExperienceForm />
         <div className="flex flex-col gap-3 pt-5">
-          {experiences.length ? (
-            experiences.map((exp) => (
-              <article key={exp.id} className="rounded-xl border border-border bg-background p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-medium">{exp.title}</h3>
-                    <p className="mt-0.5 text-sm text-muted-foreground">{exp.organization}</p>
+          {experiences.length || eventRecognitions.length ? (
+            <>
+              {experiences.map((exp) => (
+                <article key={exp.id} className="rounded-xl border border-border bg-background p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-medium">{exp.title}</h3>
+                      <p className="mt-0.5 text-sm text-muted-foreground">{exp.organization}</p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        exp.type === 'TEACHING'
+                          ? 'bg-secondary text-secondary-foreground'
+                          : 'bg-accent/20 text-accent-foreground'
+                      }`}
+                    >
+                      {exp.type === 'TEACHING' ? 'Teaching' : 'Industry'}
+                    </span>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                      exp.type === 'TEACHING'
-                        ? 'bg-secondary text-secondary-foreground'
-                        : 'bg-accent/20 text-accent-foreground'
-                    }`}
-                  >
-                    {exp.type === 'TEACHING' ? 'Teaching' : 'Industry'}
-                  </span>
-                </div>
-                {(exp.startDate || exp.endDate) && (
+                  {(exp.startDate || exp.endDate) && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {exp.startDate ? new Date(exp.startDate).toLocaleDateString() : '—'} &rarr;{' '}
+                      {exp.endDate ? new Date(exp.endDate).toLocaleDateString() : 'Present'}
+                    </p>
+                  )}
+                  {exp.description && <p className="mt-2 text-sm text-muted-foreground">{exp.description}</p>}
+                </article>
+              ))}
+
+              {eventRecognitions.map((part) => (
+                <article key={part.id} className="rounded-xl border border-border bg-background p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-medium">
+                        {part.event.title}
+                        {part.position ? ` · ${part.position}` : ''}
+                      </h3>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {part.event.department.name} ({part.event.department.code})
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                        Event
+                      </span>
+                      <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                        {part.role === 'WINNER' ? 'Winner' : 'Participation'}
+                      </span>
+                    </div>
+                  </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {exp.startDate ? new Date(exp.startDate).toLocaleDateString() : '—'} &rarr;{' '}
-                    {exp.endDate ? new Date(exp.endDate).toLocaleDateString() : 'Present'}
+                    {new Date(part.event.startsAt).toLocaleDateString()} &rarr;{' '}
+                    {new Date(part.event.endsAt).toLocaleDateString()}
                   </p>
-                )}
-                {exp.description && <p className="mt-2 text-sm text-muted-foreground">{exp.description}</p>}
-              </article>
-            ))
+                  {part.event.description && (
+                    <p className="mt-2 text-sm text-muted-foreground">{part.event.description}</p>
+                  )}
+                  {part.certificateUrl && (
+                    <div className="mt-2 text-xs">
+                      <a
+                        href={part.certificateUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary underline hover:opacity-80"
+                      >
+                        View certificate
+                      </a>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </>
           ) : (
             <p className="rounded-xl border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">
               No experience records added yet. Add teaching or industry experience above.
@@ -639,6 +690,80 @@ export function FacultyWorkspace({
           ) : (
             <p className="rounded-xl border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">
               No certifications added yet. Add your first certification above.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Read-only "My Events" Section */}
+      <section aria-labelledby="faculty-my-events-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="faculty-my-events-heading" className="text-lg font-semibold">My Events</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Institutional events and symposiums you have judged, mentored, organized, or participated in.
+            </p>
+          </div>
+          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+            {participations.length} {participations.length === 1 ? 'event' : 'events'}
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {participations.length ? (
+            participations.map((part) => (
+              <article key={part.id} className="rounded-xl border border-border bg-background p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-medium">{part.event.title}</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {part.event.department.name} ({part.event.department.code})
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                      {part.role === 'WINNER' ? 'Winner' : part.role === 'ORGANIZER' ? 'Organizer' : 'Participant'}
+                    </span>
+                    {part.position && (
+                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                        {part.position}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span className="font-medium uppercase tracking-wide">
+                    {part.event.type.replaceAll('_', ' ').toLowerCase()}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {new Date(part.event.startsAt).toLocaleDateString()} &rarr;{' '}
+                    {new Date(part.event.endsAt).toLocaleDateString()}
+                  </span>
+                  {part.certificateUrl && (
+                    <>
+                      <span>•</span>
+                      <a
+                        href={part.certificateUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary underline hover:opacity-80"
+                      >
+                        View certificate
+                      </a>
+                    </>
+                  )}
+                </div>
+
+                {part.event.description && (
+                  <p className="mt-2 text-sm text-muted-foreground">{part.event.description}</p>
+                )}
+              </article>
+            ))
+          ) : (
+            <p className="rounded-xl border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">
+              No institutional event participations recorded yet.
             </p>
           )}
         </div>
