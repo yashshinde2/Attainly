@@ -7,6 +7,8 @@ import type { Role } from '@/generated/prisma/client'
 import type { DepartmentWithCourseCount } from '@/lib/server/repositories/department-repository'
 import type { EventWithDetails } from '@/lib/server/repositories/event-repository'
 import type { UserWithRole } from '@/lib/server/repositories/institution-user-repository'
+import { PendingVerifications } from '@/components/pending-verifications'
+import type { PendingVerificationItem } from '@/lib/server/services/verification'
 
 const initialState: AdminActionState = { status: 'idle', message: '' }
 const fieldClass =
@@ -138,14 +140,31 @@ export function AdminWorkspace({
   users,
   roles,
   events = [],
+  pendingVerifications = [],
 }: {
   departments: DepartmentWithCourseCount[]
   users: UserWithRole[]
   roles: Role[]
   events?: EventWithDetails[]
+  pendingVerifications?: PendingVerificationItem[]
 }) {
   return (
     <div className="mt-8 flex flex-col gap-8">
+      {/* Pending Verifications */}
+      <section aria-labelledby="verifications-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="verifications-heading" className="text-lg font-semibold">Pending Verifications</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Review and verify student achievements, certifications, papers, patents, and internships.
+            </p>
+          </div>
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            {pendingVerifications.length} {pendingVerifications.length === 1 ? 'claim' : 'claims'} pending
+          </span>
+        </div>
+        <PendingVerifications items={pendingVerifications} />
+      </section>
       {/* Events Summary Section */}
       <section aria-labelledby="events-overview-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-2">

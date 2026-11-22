@@ -3,6 +3,7 @@ import { StudentWorkspace } from '@/components/student-workspace'
 import { getCurrentPrincipal } from '@/lib/server/current-principal'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/server/db'
 import { PrismaStudentProfileRepository } from '@/lib/server/repositories/student-profile-repository'
 import { PrismaStudentAchievementRepository } from '@/lib/server/repositories/student-achievement-repository'
 import { PrismaEventRepository } from '@/lib/server/repositories/event-repository'
@@ -12,6 +13,8 @@ import { PrismaStudentResearchPaperRepository } from '@/lib/server/repositories/
 import { PrismaStudentPatentRepository } from '@/lib/server/repositories/student-patent-repository'
 import { PrismaStudentProjectRepository } from '@/lib/server/repositories/student-project-repository'
 import { PrismaStudentInternshipRepository } from '@/lib/server/repositories/student-internship-repository'
+import { PrismaStudentSkillRepository } from '@/lib/server/repositories/student-skill-repository'
+import { PrismaStudentSemesterRepository } from '@/lib/server/repositories/student-semester-repository'
 import {
   readOwnStudentProfile,
   readOwnStudentEducation,
@@ -20,6 +23,8 @@ import {
   readOwnStudentPatents,
   readOwnStudentProjects,
   readOwnStudentInternships,
+  readOwnStudentSkills,
+  readOwnStudentSemesters,
 } from '@/lib/server/services/student'
 import { listOwnAchievements } from '@/lib/server/services/student-achievements'
 import { listOwnEventParticipations } from '@/lib/server/services/event'
@@ -33,6 +38,8 @@ const researchPaperRepository = new PrismaStudentResearchPaperRepository()
 const patentRepository = new PrismaStudentPatentRepository()
 const projectRepository = new PrismaStudentProjectRepository()
 const internshipRepository = new PrismaStudentInternshipRepository()
+const skillRepository = new PrismaStudentSkillRepository()
+const semesterRepository = new PrismaStudentSemesterRepository()
 
 export default async function StudentPortalPage() {
   const [principal, session] = await Promise.all([
@@ -50,6 +57,10 @@ export default async function StudentPortalPage() {
     patents,
     projects,
     internships,
+    skills,
+    semesters,
+    departments,
+    courses,
   ] = await Promise.all([
     readOwnStudentProfile({ principal, repository: profileRepository }),
     listOwnAchievements({ principal, repository: achievementRepository }),
@@ -60,6 +71,16 @@ export default async function StudentPortalPage() {
     readOwnStudentPatents({ principal, repository: patentRepository }),
     readOwnStudentProjects({ principal, repository: projectRepository }),
     readOwnStudentInternships({ principal, repository: internshipRepository }),
+    readOwnStudentSkills({ principal, repository: skillRepository }),
+    readOwnStudentSemesters({ principal, repository: semesterRepository }),
+    prisma.department.findMany({
+      where: { institutionId: principal.institutionId },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.course.findMany({
+      where: { institutionId: principal.institutionId },
+      orderBy: { name: 'asc' },
+    }),
   ])
 
   return (
@@ -77,6 +98,10 @@ export default async function StudentPortalPage() {
           patents={patents}
           projects={projects}
           internships={internships}
+          skills={skills}
+          semesters={semesters}
+          departments={departments}
+          courses={courses}
           participations={participations}
         />
       }

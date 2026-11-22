@@ -7,6 +7,7 @@ import { PrismaInstitutionUserRepository } from '@/lib/server/repositories/insti
 import { listInstitutionDepartments } from '@/lib/server/services/department'
 import { listInstitutionEvents } from '@/lib/server/services/event'
 import { listInstitutionUsers, listInstitutionRoles } from '@/lib/server/services/institution-user'
+import { listPendingForInstitution } from '@/lib/server/services/verification'
 
 const departmentRepository = new PrismaDepartmentRepository()
 const userRepository = new PrismaInstitutionUserRepository()
@@ -14,11 +15,12 @@ const eventRepository = new PrismaEventRepository()
 
 export default async function AdminPortalPage() {
   const principal = await getCurrentPrincipal()
-  const [departments, users, roles, events] = await Promise.all([
+  const [departments, users, roles, events, pendingVerifications] = await Promise.all([
     listInstitutionDepartments({ principal, repository: departmentRepository }),
     listInstitutionUsers({ principal, repository: userRepository }),
     listInstitutionRoles({ principal, repository: userRepository }),
     listInstitutionEvents({ principal, repository: eventRepository }),
+    listPendingForInstitution({ principal }),
   ])
 
   return (
@@ -30,6 +32,7 @@ export default async function AdminPortalPage() {
           users={users}
           roles={roles}
           events={events}
+          pendingVerifications={pendingVerifications}
         />
       }
     />
