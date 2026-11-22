@@ -5,7 +5,15 @@ import { z } from 'zod'
 
 export interface PendingVerificationItem {
   id: string
-  itemType: 'ACHIEVEMENT' | 'CERTIFICATION' | 'RESEARCH_PAPER' | 'PATENT' | 'INTERNSHIP'
+  itemType:
+    | 'ACHIEVEMENT'
+    | 'CERTIFICATION'
+    | 'RESEARCH_PAPER'
+    | 'PATENT'
+    | 'INTERNSHIP'
+    | 'FACULTY_CERTIFICATION'
+    | 'FACULTY_RESEARCH_PAPER'
+    | 'FACULTY_PATENT'
   title: string
   studentName: string
   studentEmail: string
@@ -21,7 +29,16 @@ export async function listPendingForInstitution(input: {
   requirePermission(input.principal, 'record:verify')
   const { institutionId } = input.principal
 
-  const [achievements, certifications, papers, patents, internships] = await Promise.all([
+  const [
+    achievements,
+    certifications,
+    papers,
+    patents,
+    internships,
+    facultyCertifications,
+    facultyPapers,
+    facultyPatents,
+  ] = await Promise.all([
     prisma.achievement.findMany({
       where: { institutionId, verificationStatus: 'PENDING' },
       include: { studentProfile: { include: { user: true } } },
@@ -45,6 +62,21 @@ export async function listPendingForInstitution(input: {
     prisma.studentInternship.findMany({
       where: { institutionId, verificationStatus: 'PENDING' },
       include: { studentProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.facultyCertification.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { facultyProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.facultyResearchPaper.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { facultyProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.facultyPatent.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { facultyProfile: { include: { user: true } } },
       orderBy: { createdAt: 'desc' },
     }),
   ])
@@ -121,11 +153,63 @@ export async function listPendingForInstitution(input: {
     })
   }
 
+  // Faculty Records
+  for (const fc of facultyCertifications) {
+    items.push({
+      id: fc.id,
+      itemType: 'FACULTY_CERTIFICATION',
+      title: fc.name,
+      studentName: `Faculty: ${fc.facultyProfile.user.firstName} ${fc.facultyProfile.user.lastName}`.trim(),
+      studentEmail: fc.facultyProfile.user.email,
+      enrollmentNumber: fc.facultyProfile.office ? `Office: ${fc.facultyProfile.office}` : null,
+      submittedAt: fc.createdAt,
+      details: fc.issuer ? `Issuer: ${fc.issuer}` : null,
+      fileUrl: fc.fileUrl,
+    })
+  }
+
+  for (const fp of facultyPapers) {
+    items.push({
+      id: fp.id,
+      itemType: 'FACULTY_RESEARCH_PAPER',
+      title: fp.title,
+      studentName: `Faculty: ${fp.facultyProfile.user.firstName} ${fp.facultyProfile.user.lastName}`.trim(),
+      studentEmail: fp.facultyProfile.user.email,
+      enrollmentNumber: fp.facultyProfile.office ? `Office: ${fp.facultyProfile.office}` : null,
+      submittedAt: fp.createdAt,
+      details: `Publication: ${fp.publication ?? 'N/A'}${fp.doi ? ` | DOI: ${fp.doi}` : ''}`,
+      fileUrl: fp.fileUrl,
+    })
+  }
+
+  for (const fpat of facultyPatents) {
+    items.push({
+      id: fpat.id,
+      itemType: 'FACULTY_PATENT',
+      title: fpat.title,
+      studentName: `Faculty: ${fpat.facultyProfile.user.firstName} ${fpat.facultyProfile.user.lastName}`.trim(),
+      studentEmail: fpat.facultyProfile.user.email,
+      enrollmentNumber: fpat.facultyProfile.office ? `Office: ${fpat.facultyProfile.office}` : null,
+      submittedAt: fpat.createdAt,
+      details: `Patent #: ${fpat.patentNumber ?? 'N/A'} | Status: ${fpat.status ?? 'N/A'}`,
+      fileUrl: fpat.fileUrl,
+    })
+  }
+
   return items.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
 }
 
 const statusInput = z.object({
-  itemType: z.enum(['ACHIEVEMENT', 'CERTIFICATION', 'RESEARCH_PAPER', 'PATENT', 'INTERNSHIP']),
+  itemType: z.enum([
+    'ACHIEVEMENT',
+    'CERTIFICATION',
+    'RESEARCH_PAPER',
+    'PATENT',
+    'INTERNSHIP',
+    'FACULTY_CERTIFICATION',
+    'FACULTY_RESEARCH_PAPER',
+    'FACULTY_PATENT',
+  ]),
   itemId: z.string().min(1),
   status: z.enum(['VERIFIED', 'REJECTED']),
 })
@@ -165,6 +249,24 @@ export async function setVerificationStatus(input: {
       break
     case 'INTERNSHIP':
       await prisma.studentInternship.update({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        data: { verificationStatus: status },
+      })
+      break
+    case 'FACULTY_CERTIFICATION':
+      await prisma.facultyCertification.update({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        data: { verificationStatus: status },
+      })
+      break
+    case 'FACULTY_RESEARCH_PAPER':
+      await prisma.facultyResearchPaper.update({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        data: { verificationStatus: status },
+      })
+      break
+    case 'FACULTY_PATENT':
+      await prisma.facultyPatent.update({
         where: { institutionId_id: { institutionId, id: itemId } },
         data: { verificationStatus: status },
       })

@@ -54,8 +54,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## Features & Portals
 
 - **Student Portal (`/student`)**: Maintain institutional identity (enrollment number, department, current semester, admission year), personal contacts, social links, profile photos, track verified extracurricular achievements, manage formal education history, semester-by-semester academic grades (SGPA/CGPA), certifications, research publications, patent filings, projects, internships (with stipend & PPO/job conversion tracking), technical & soft skills, tag claims to NAAC/NBA accreditation criteria, calculate real-time profile completeness, generate live resume previews and download PDF resumes powered by `@react-pdf/renderer`.
-- **Faculty Portal (`/faculty`)**: Maintain office contacts, academic qualifications, teaching and industry experiences, research papers, patents, institutional event participation, and certifications.
-- **Institution Admin Console (`/admin`, `/admin/events`)**: Manage academic departments, invite and provision institution users, schedule campus events, bulk-record participant/winner/organizer outcomes in a single submission, and review/verify student submitted claims (Approve/Reject).
+- **Faculty Portal (`/faculty`)**: Maintain office contacts, profile photos, LinkedIn and ResearchGate/ORCID research profiles, academic qualifications, teaching and industry experiences, research publications, patent filings, institutional event participation, certifications, and tag claims to accreditation criteria, with full inline edit/delete and verification status badges.
+- **Institution Admin Console (`/admin`, `/admin/events`)**: Manage academic departments, invite and provision institution users, schedule campus events, bulk-record participant/winner/organizer outcomes in a single submission, and review/verify student and faculty submitted claims (Approve/Reject).
 
 ## Permissions
 
@@ -70,6 +70,12 @@ The role-based permission system controls access to all repository actions:
 - `student_internship:read_own`, `student_internship:edit_own`, `student_internship:delete_own`
 - `student_skill:read_own`, `student_skill:create_own`, `student_skill:edit_own`, `student_skill:delete_own`
 - `student_semester:read_own`, `student_semester:create_own`, `student_semester:edit_own`, `student_semester:delete_own`
+- `faculty_profile:read_own`, `faculty_profile:edit_own`
+- `faculty_education:read_own`, `faculty_education:edit_own`, `faculty_education:delete_own`
+- `faculty_experience:read_own`, `faculty_experience:edit_own`, `faculty_experience:delete_own`
+- `faculty_certification:read_own`, `faculty_certification:edit_own`, `faculty_certification:delete_own`
+- `faculty_research:read_own`, `faculty_research:edit_own`, `faculty_research:delete_own`
+- `faculty_patent:read_own`, `faculty_patent:edit_own`, `faculty_patent:delete_own`
 - `achievement:read_own`, `achievement:create_own`, `achievement:edit_own`, `achievement:delete_own`
 - `record:verify` (review and approve/reject claims for Admin and Faculty)
 - `event:create`, `event:archive`, `event:enter_results`, `event:participate`

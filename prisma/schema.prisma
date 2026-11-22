@@ -395,20 +395,23 @@ model CriterionTag {
 }
 
 model FacultyProfile {
-  id            String               @default(cuid())
-  institutionId String @map("institution_id")
-  userId        String
-  phone         String?
-  office        String?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  institution   Institution          @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  user          User                 @relation(fields: [institutionId, userId], references: [institutionId, id], onDelete: Cascade)
-  education     FacultyEducation[]
-  experiences   FacultyExperience[]
-  certifications FacultyCertification[]
-  researchPapers FacultyResearchPaper[]
-  patents       FacultyPatent[]
+  id                     String                 @default(cuid())
+  institutionId          String                 @map("institution_id")
+  userId                 String
+  phone                  String?
+  office                 String?
+  photoUrl               String?
+  linkedinUrl            String?
+  researchGateOrOrcidUrl String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  institution            Institution            @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user                   User                   @relation(fields: [institutionId, userId], references: [institutionId, id], onDelete: Cascade)
+  education              FacultyEducation[]
+  experiences            FacultyExperience[]
+  certifications         FacultyCertification[]
+  researchPapers         FacultyResearchPaper[]
+  patents                FacultyPatent[]
 
   @@id([institutionId, id])
   @@unique([institutionId, userId])
@@ -449,50 +452,53 @@ model FacultyExperience {
 }
 
 model FacultyCertification {
-  id               String         @default(cuid())
-  institutionId    String @map("institution_id")
-  facultyProfileId String
-  name             String
-  issuer           String?
-  fileUrl          String?
-  issuedAt         DateTime?
-  createdAt        DateTime       @default(now())
-  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+  id                 String             @default(cuid())
+  institutionId      String @map("institution_id")
+  facultyProfileId   String
+  name               String
+  issuer             String?
+  fileUrl            String?
+  issuedAt           DateTime?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile     FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
 
   @@id([institutionId, id])
   @@index([institutionId, facultyProfileId])
 }
 
 model FacultyResearchPaper {
-  id               String         @default(cuid())
-  institutionId    String @map("institution_id")
-  facultyProfileId String
-  title            String
-  publication      String?
-  doi              String?
-  fileUrl          String?
-  publishedAt      DateTime?
-  createdAt        DateTime       @default(now())
-  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+  id                 String             @default(cuid())
+  institutionId      String @map("institution_id")
+  facultyProfileId   String
+  title              String
+  publication        String?
+  doi                String?
+  fileUrl            String?
+  publishedAt        DateTime?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile     FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
 
   @@id([institutionId, id])
   @@index([institutionId, facultyProfileId])
 }
 
 model FacultyPatent {
-  id               String         @default(cuid())
-  institutionId    String @map("institution_id")
-  facultyProfileId String
-  title            String
-  patentNumber     String?
-  status           String?
-  fileUrl          String?
-  filedAt          DateTime?
-  createdAt        DateTime       @default(now())
-  institution      Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  facultyProfile   FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
+  id                 String             @default(cuid())
+  institutionId      String @map("institution_id")
+  facultyProfileId   String
+  title              String
+  patentNumber       String?
+  status             String?
+  fileUrl            String?
+  filedAt            DateTime?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  facultyProfile     FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
 
   @@id([institutionId, id])
   @@index([institutionId, facultyProfileId])

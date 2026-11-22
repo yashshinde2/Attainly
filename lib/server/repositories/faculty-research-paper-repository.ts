@@ -28,9 +28,48 @@ export class PrismaFacultyResearchPaperRepository implements FacultyResearchPape
     return prisma.facultyResearchPaper.create({
       data: {
         ...input.data,
+        verificationStatus: 'PENDING',
         institutionId: input.institutionId,
         facultyProfileId: profile.id,
       },
+    })
+  }
+
+  async updateByUser(input: { institutionId: string; userId: string; id: string; data: FacultyResearchPaperInput }): Promise<FacultyResearchPaper> {
+    const profile = await prisma.facultyProfile.findUnique({
+      where: { institutionId_userId: { institutionId: input.institutionId, userId: input.userId } },
+      select: { id: true },
+    })
+    if (!profile) throw new Error('Faculty profile not found.')
+
+    const existing = await prisma.facultyResearchPaper.findFirst({
+      where: { id: input.id, institutionId: input.institutionId, facultyProfileId: profile.id },
+    })
+    if (!existing) throw new Error('Research paper not found.')
+
+    return prisma.facultyResearchPaper.update({
+      where: { institutionId_id: { institutionId: input.institutionId, id: input.id } },
+      data: {
+        ...input.data,
+        verificationStatus: 'PENDING', // Reset verification on edit
+      },
+    })
+  }
+
+  async deleteByUser(input: { institutionId: string; userId: string; id: string }): Promise<void> {
+    const profile = await prisma.facultyProfile.findUnique({
+      where: { institutionId_userId: { institutionId: input.institutionId, userId: input.userId } },
+      select: { id: true },
+    })
+    if (!profile) throw new Error('Faculty profile not found.')
+
+    const existing = await prisma.facultyResearchPaper.findFirst({
+      where: { id: input.id, institutionId: input.institutionId, facultyProfileId: profile.id },
+    })
+    if (!existing) throw new Error('Research paper not found.')
+
+    await prisma.facultyResearchPaper.delete({
+      where: { institutionId_id: { institutionId: input.institutionId, id: input.id } },
     })
   }
 }

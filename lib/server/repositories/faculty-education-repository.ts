@@ -33,4 +33,39 @@ export class PrismaFacultyEducationRepository implements FacultyEducationReposit
       },
     })
   }
+
+  async updateByUser(input: { institutionId: string; userId: string; id: string; data: FacultyEducationInput }): Promise<FacultyEducation> {
+    const profile = await prisma.facultyProfile.findUnique({
+      where: { institutionId_userId: { institutionId: input.institutionId, userId: input.userId } },
+      select: { id: true },
+    })
+    if (!profile) throw new Error('Faculty profile not found.')
+
+    const existing = await prisma.facultyEducation.findFirst({
+      where: { id: input.id, institutionId: input.institutionId, facultyProfileId: profile.id },
+    })
+    if (!existing) throw new Error('Education record not found.')
+
+    return prisma.facultyEducation.update({
+      where: { institutionId_id: { institutionId: input.institutionId, id: input.id } },
+      data: input.data,
+    })
+  }
+
+  async deleteByUser(input: { institutionId: string; userId: string; id: string }): Promise<void> {
+    const profile = await prisma.facultyProfile.findUnique({
+      where: { institutionId_userId: { institutionId: input.institutionId, userId: input.userId } },
+      select: { id: true },
+    })
+    if (!profile) throw new Error('Faculty profile not found.')
+
+    const existing = await prisma.facultyEducation.findFirst({
+      where: { id: input.id, institutionId: input.institutionId, facultyProfileId: profile.id },
+    })
+    if (!existing) throw new Error('Education record not found.')
+
+    await prisma.facultyEducation.delete({
+      where: { institutionId_id: { institutionId: input.institutionId, id: input.id } },
+    })
+  }
 }
