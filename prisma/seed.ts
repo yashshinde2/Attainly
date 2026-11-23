@@ -1,5 +1,9 @@
-import 'dotenv/config'
+import { config as loadDotenv } from 'dotenv'
+loadDotenv({ path: '.env.local' })
+loadDotenv({ path: '.env.development.local' })
+loadDotenv({ path: '.env' })
 import { hash } from 'bcryptjs'
+import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../generated/prisma/client'
 
@@ -10,7 +14,14 @@ if (process.env.NODE_ENV === 'production') {
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_PRISMA_URL
 if (!connectionString) throw new Error('DATABASE_URL is required to seed Attainly.')
 
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
+const pool = new Pool({
+  connectionString,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+})
+
+const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
 const DEMO_PASSWORD = 'AttainlyDemo!2026'
 
 const permissionDefinitions = [
@@ -64,18 +75,63 @@ const permissionDefinitions = [
   { key: 'faculty_patent:read_own', description: 'Read faculty patents.' },
   { key: 'faculty_patent:edit_own', description: 'Edit faculty patents.' },
   { key: 'faculty_patent:delete_own', description: 'Delete faculty patents.' },
-  { key: 'department:manage', description: 'Manage institution departments.' },
-  { key: 'course:manage', description: 'Manage institution courses.' },
-  { key: 'user:manage', description: 'Manage institution users.' },
-  { key: 'event:create', description: 'Create institution events.' },
-  { key: 'event:participate', description: 'Join institution events.' },
-  { key: 'event:enter_results', description: 'Enter event participation results.' },
-  { key: 'document:upload', description: 'Upload institution documents.' },
-  { key: 'document:read_own', description: 'Read documents uploaded by the signed-in user.' },
-  { key: 'user:import', description: 'Bulk import institution users.' },
+  { key: 'event:create', description: 'Create and manage events.' },
+  { key: 'event:archive', description: 'Archive events.' },
+  { key: 'event:enter_results', description: 'Bulk enter results for event participants.' },
+  { key: 'event:participate', description: 'Self-register interest or participate in events.' },
+  { key: 'department:manage', description: 'Manage academic departments.' },
+  { key: 'course:manage', description: 'Manage academic courses.' },
+  { key: 'user:manage', description: 'Manage users across the institution.' },
+  { key: 'user:import', description: 'Import users from CSV.' },
+  { key: 'document:upload', description: 'Upload supporting proof documents.' },
+  { key: 'document:read_own', description: 'Read owned proof documents.' },
 ]
 
 const roleDefinitions = [
+  {
+    key: 'INSTITUTION_ADMIN',
+    name: 'Institution Administrator',
+    permissions: [
+      'department:manage',
+      'course:manage',
+      'user:manage',
+      'user:import',
+      'event:create',
+      'event:archive',
+      'event:enter_results',
+      'record:verify',
+    ],
+  },
+  {
+    key: 'FACULTY',
+    name: 'Faculty Member',
+    permissions: [
+      'faculty_profile:read_own',
+      'faculty_profile:edit_own',
+      'faculty_education:read_own',
+      'faculty_education:edit_own',
+      'faculty_education:delete_own',
+      'faculty_experience:read_own',
+      'faculty_experience:edit_own',
+      'faculty_experience:delete_own',
+      'faculty_certification:read_own',
+      'faculty_certification:edit_own',
+      'faculty_certification:delete_own',
+      'faculty_research:read_own',
+      'faculty_research:edit_own',
+      'faculty_research:delete_own',
+      'faculty_patent:read_own',
+      'faculty_patent:edit_own',
+      'faculty_patent:delete_own',
+      'record:verify',
+      'event:create',
+      'event:archive',
+      'event:enter_results',
+      'event:participate',
+      'document:upload',
+      'document:read_own',
+    ],
+  },
   {
     key: 'STUDENT',
     name: 'Student',
@@ -117,53 +173,23 @@ const roleDefinitions = [
       'document:read_own',
     ],
   },
-  {
-    key: 'FACULTY',
-    name: 'Faculty',
-    permissions: [
-      'faculty_profile:read_own',
-      'faculty_profile:edit_own',
-      'faculty_education:read_own',
-      'faculty_education:edit_own',
-      'faculty_education:delete_own',
-      'faculty_experience:read_own',
-      'faculty_experience:edit_own',
-      'faculty_experience:delete_own',
-      'faculty_certification:read_own',
-      'faculty_certification:edit_own',
-      'faculty_certification:delete_own',
-      'faculty_research:read_own',
-      'faculty_research:edit_own',
-      'faculty_research:delete_own',
-      'faculty_patent:read_own',
-      'faculty_patent:edit_own',
-      'faculty_patent:delete_own',
-      'record:verify',
-      'event:create',
-      'event:participate',
-      'event:enter_results',
-      'document:upload',
-      'document:read_own',
-    ],
-  },
-  {
-    key: 'INSTITUTION_ADMIN',
-    name: 'Institution admin',
-    permissions: permissionDefinitions.map(({ key }) => key),
-  },
 ]
 
 async function main() {
+  console.info('Seeding Attainly demo database…')
+
   const institution = await prisma.institution.upsert({
     where: { slug: 'attainly-demo' },
-    update: { name: 'Attainly Demo Institution' },
-    create: { name: 'Attainly Demo Institution', slug: 'attainly-demo' },
+    update: { name: 'Attainly Demo Institute of Technology' },
+    create: {
+      slug: 'attainly-demo',
+      name: 'Attainly Demo Institute of Technology',
+    },
   })
 
-  // Seed sample Department & Course if needed
   const department = await prisma.department.upsert({
     where: { institutionId_code: { institutionId: institution.id, code: 'CSE' } },
-    update: {},
+    update: { name: 'Computer Science and Engineering' },
     create: {
       institutionId: institution.id,
       code: 'CSE',
@@ -173,24 +199,33 @@ async function main() {
 
   await prisma.course.upsert({
     where: { institutionId_code: { institutionId: institution.id, code: 'BTECH-CSE' } },
-    update: {},
+    update: { name: 'B.Tech in Computer Science and Engineering', departmentId: department.id },
     create: {
       institutionId: institution.id,
       departmentId: department.id,
       code: 'BTECH-CSE',
-      name: 'B.Tech in Computer Science',
+      name: 'B.Tech in Computer Science and Engineering',
       description: 'Undergraduate Program in Computer Science and Engineering',
     },
   })
 
+  // Bulk create/sync permissions in 1 query
+  await prisma.permission.createMany({
+    data: permissionDefinitions.map((def) => ({
+      institutionId: institution.id,
+      key: def.key,
+      description: def.description,
+    })),
+    skipDuplicates: true,
+  })
+
+  const existingPermissions = await prisma.permission.findMany({
+    where: { institutionId: institution.id },
+    select: { id: true, key: true },
+  })
   const permissions = new Map<string, string>()
-  for (const definition of permissionDefinitions) {
-    const permission = await prisma.permission.upsert({
-      where: { institutionId_key: { institutionId: institution.id, key: definition.key } },
-      update: { description: definition.description },
-      create: { institutionId: institution.id, ...definition },
-    })
-    permissions.set(permission.key, permission.id)
+  for (const perm of existingPermissions) {
+    permissions.set(perm.key, perm.id)
   }
 
   const roles = new Map<string, string>()
@@ -202,15 +237,20 @@ async function main() {
     })
     roles.set(role.key, role.id)
 
-    for (const permissionKey of definition.permissions) {
+    const rolePermissionData = definition.permissions.map((permissionKey) => {
       const permissionId = permissions.get(permissionKey)
       if (!permissionId) throw new Error(`Missing permission definition: ${permissionKey}`)
-      await prisma.rolePermission.upsert({
-        where: { institutionId_roleId_permissionId: { institutionId: institution.id, roleId: role.id, permissionId } },
-        update: {},
-        create: { institutionId: institution.id, roleId: role.id, permissionId },
-      })
-    }
+      return {
+        institutionId: institution.id,
+        roleId: role.id,
+        permissionId,
+      }
+    })
+
+    await prisma.rolePermission.createMany({
+      data: rolePermissionData,
+      skipDuplicates: true,
+    })
   }
 
   const passwordHash = await hash(DEMO_PASSWORD, 12)
@@ -265,4 +305,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect()
+    await pool.end()
   })

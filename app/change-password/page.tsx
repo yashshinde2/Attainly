@@ -4,12 +4,7 @@ import { getServerSession } from 'next-auth/next'
 import { KeyRound, Layers3 } from 'lucide-react'
 import { ChangePasswordForm } from '@/components/change-password-form'
 import { authOptions } from '@/lib/auth'
-
-const portalByRole: Record<string, string> = {
-  STUDENT: '/student',
-  FACULTY: '/faculty',
-  INSTITUTION_ADMIN: '/admin',
-}
+import { prisma } from '@/lib/server/db'
 
 export default async function ChangePasswordPage() {
   const session = await getServerSession(authOptions)
@@ -18,9 +13,20 @@ export default async function ChangePasswordPage() {
     redirect('/login')
   }
 
-  // If user does not require a password change, redirect them directly to their portal
-  if (!session.user.mustChangePassword) {
-    redirect(portalByRole[session.user.roleKey] ?? '/')
+  // Check the actual database state for the user
+  const dbUser = await prisma.user.findUnique({
+    where: {
+      institutionId_id: {
+        institutionId: session.user.institutionId,
+        id: session.user.id,
+      },
+    },
+    select: { mustChangePassword: true },
+  })
+
+  // If the user in DB does not require a password change, delegate cookie synchronization to the Route Handler
+  if (!dbUser?.mustChangePassword) {
+    redirect('/api/auth/sync')
   }
 
   return (
