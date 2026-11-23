@@ -5,14 +5,8 @@ import type { StudentAchievementInput, StudentAchievementRepository } from '../s
 
 export class PrismaStudentAchievementRepository implements StudentAchievementRepository<Achievement> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<Achievement[]> {
-    const profile = await prisma.studentProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.achievement.findMany({
-      where: { institutionId: input.institutionId, studentProfileId: profile.id },
+      where: { institutionId: input.institutionId, studentProfile: { userId: input.userId } },
       orderBy: { createdAt: 'desc' },
     })
   }

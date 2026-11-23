@@ -5,14 +5,8 @@ import type { FacultyPatentInput, FacultyPatentRepository } from '../services/fa
 
 export class PrismaFacultyPatentRepository implements FacultyPatentRepository<FacultyPatent> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<FacultyPatent[]> {
-    const profile = await prisma.facultyProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.facultyPatent.findMany({
-      where: { institutionId: input.institutionId, facultyProfileId: profile.id },
+      where: { institutionId: input.institutionId, facultyProfile: { userId: input.userId } },
       orderBy: { createdAt: 'desc' },
     })
   }

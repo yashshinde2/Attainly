@@ -5,14 +5,8 @@ import type { StudentPatentInput, StudentPatentRepository } from '../services/st
 
 export class PrismaStudentPatentRepository implements StudentPatentRepository<StudentPatent> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<StudentPatent[]> {
-    const profile = await prisma.studentProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.studentPatent.findMany({
-      where: { institutionId: input.institutionId, studentProfileId: profile.id },
+      where: { institutionId: input.institutionId, studentProfile: { userId: input.userId } },
       orderBy: { createdAt: 'desc' },
     })
   }

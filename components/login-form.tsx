@@ -3,15 +3,18 @@
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
+import { Loader2 } from 'lucide-react'
 
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, setPending] = useState(false)
+  const [activeRole, setActiveRole] = useState<'admin' | 'faculty' | 'student' | null>(null)
   const [error, setError] = useState('')
 
-  async function handleLogin(email: string, password: string) {
+  async function handleLogin(email: string, password: string, role?: 'admin' | 'faculty' | 'student') {
     setPending(true)
+    if (role) setActiveRole(role)
     setError('')
     try {
       const explicitCallback = searchParams.get('callbackUrl')
@@ -32,15 +35,16 @@ export function LoginForm() {
 
       if (!result || result.error) {
         setError('Email or password was not recognized.')
+        setPending(false)
+        setActiveRole(null)
         return
       }
 
-      router.replace(result.url ?? targetUrl)
-      router.refresh()
+      router.push(result.url ?? targetUrl)
     } catch {
       setError('Sign-in is temporarily unavailable. Please try again.')
-    } finally {
       setPending(false)
+      setActiveRole(null)
     }
   }
 
@@ -81,9 +85,16 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={pending}
-          className="mt-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition active:scale-[0.98] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {pending ? 'Signing in…' : 'Sign in'}
+          {pending && !activeRole ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              <span>Signing in…</span>
+            </>
+          ) : (
+            'Sign in'
+          )}
         </button>
       </form>
 
@@ -95,44 +106,80 @@ export function LoginForm() {
           <button
             type="button"
             disabled={pending}
-            onClick={() => handleLogin('admin@attainly.demo', 'AttainlyDemo!2026')}
-            className="flex items-center justify-between rounded-xl border border-border bg-background p-2.5 text-left transition hover:bg-muted"
+            onClick={() => handleLogin('admin@attainly.demo', 'AttainlyDemo!2026', 'admin')}
+            className={`flex items-center justify-between rounded-xl border p-2.5 text-left transition active:scale-[0.98] hover:bg-muted ${
+              activeRole === 'admin'
+                ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                : 'border-border bg-background'
+            }`}
           >
             <div>
               <p className="text-xs font-semibold text-foreground">Alex Admin (Institution Admin)</p>
               <p className="text-[11px] text-muted-foreground">admin@attainly.demo</p>
             </div>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
-              /admin
-            </span>
+            <div className="flex items-center gap-1.5">
+              {activeRole === 'admin' ? (
+                <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  <Loader2 size={11} className="animate-spin" /> Opening…
+                </span>
+              ) : (
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                  /admin
+                </span>
+              )}
+            </div>
           </button>
           <button
             type="button"
             disabled={pending}
-            onClick={() => handleLogin('faculty@attainly.demo', 'AttainlyDemo!2026')}
-            className="flex items-center justify-between rounded-xl border border-border bg-background p-2.5 text-left transition hover:bg-muted"
+            onClick={() => handleLogin('faculty@attainly.demo', 'AttainlyDemo!2026', 'faculty')}
+            className={`flex items-center justify-between rounded-xl border p-2.5 text-left transition active:scale-[0.98] hover:bg-muted ${
+              activeRole === 'faculty'
+                ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                : 'border-border bg-background'
+            }`}
           >
             <div>
               <p className="text-xs font-semibold text-foreground">Frankie Faculty (Faculty Portal)</p>
               <p className="text-[11px] text-muted-foreground">faculty@attainly.demo</p>
             </div>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
-              /faculty
-            </span>
+            <div className="flex items-center gap-1.5">
+              {activeRole === 'faculty' ? (
+                <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  <Loader2 size={11} className="animate-spin" /> Opening…
+                </span>
+              ) : (
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                  /faculty
+                </span>
+              )}
+            </div>
           </button>
           <button
             type="button"
             disabled={pending}
-            onClick={() => handleLogin('student@attainly.demo', 'AttainlyDemo!2026')}
-            className="flex items-center justify-between rounded-xl border border-border bg-background p-2.5 text-left transition hover:bg-muted"
+            onClick={() => handleLogin('student@attainly.demo', 'AttainlyDemo!2026', 'student')}
+            className={`flex items-center justify-between rounded-xl border p-2.5 text-left transition active:scale-[0.98] hover:bg-muted ${
+              activeRole === 'student'
+                ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                : 'border-border bg-background'
+            }`}
           >
             <div>
               <p className="text-xs font-semibold text-foreground">Sam Student (Student Portal)</p>
               <p className="text-[11px] text-muted-foreground">student@attainly.demo</p>
             </div>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
-              /student
-            </span>
+            <div className="flex items-center gap-1.5">
+              {activeRole === 'student' ? (
+                <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  <Loader2 size={11} className="animate-spin" /> Opening…
+                </span>
+              ) : (
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                  /student
+                </span>
+              )}
+            </div>
           </button>
         </div>
       </div>

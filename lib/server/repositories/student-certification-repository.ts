@@ -5,14 +5,8 @@ import type { StudentCertificationInput, StudentCertificationRepository } from '
 
 export class PrismaStudentCertificationRepository implements StudentCertificationRepository<StudentCertification> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<StudentCertification[]> {
-    const profile = await prisma.studentProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.studentCertification.findMany({
-      where: { institutionId: input.institutionId, studentProfileId: profile.id },
+      where: { institutionId: input.institutionId, studentProfile: { userId: input.userId } },
       orderBy: { createdAt: 'desc' },
     })
   }

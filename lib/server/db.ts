@@ -20,7 +20,7 @@ function getPrismaClient(): PrismaClient {
     globalForPrisma.attainlyPool ??
     new Pool({
       connectionString,
-      max: 10,
+      max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     })

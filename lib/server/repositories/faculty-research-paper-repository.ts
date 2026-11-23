@@ -5,14 +5,8 @@ import type { FacultyResearchPaperInput, FacultyResearchPaperRepository } from '
 
 export class PrismaFacultyResearchPaperRepository implements FacultyResearchPaperRepository<FacultyResearchPaper> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<FacultyResearchPaper[]> {
-    const profile = await prisma.facultyProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.facultyResearchPaper.findMany({
-      where: { institutionId: input.institutionId, facultyProfileId: profile.id },
+      where: { institutionId: input.institutionId, facultyProfile: { userId: input.userId } },
       orderBy: { createdAt: 'desc' },
     })
   }

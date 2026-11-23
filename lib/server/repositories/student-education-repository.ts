@@ -5,14 +5,8 @@ import type { StudentEducationInput, StudentEducationRepository } from '../servi
 
 export class PrismaStudentEducationRepository implements StudentEducationRepository<StudentEducation> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<StudentEducation[]> {
-    const profile = await prisma.studentProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.studentEducation.findMany({
-      where: { institutionId: input.institutionId, studentProfileId: profile.id },
+      where: { institutionId: input.institutionId, studentProfile: { userId: input.userId } },
       orderBy: { createdAt: 'desc' },
     })
   }

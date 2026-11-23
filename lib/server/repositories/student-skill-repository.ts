@@ -5,14 +5,8 @@ import type { StudentSkillInput, StudentSkillRepository } from '../services/stud
 
 export class PrismaStudentSkillRepository implements StudentSkillRepository<StudentSkill> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<StudentSkill[]> {
-    const profile = await prisma.studentProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.studentSkill.findMany({
-      where: { institutionId: input.institutionId, studentProfileId: profile.id },
+      where: { institutionId: input.institutionId, studentProfile: { userId: input.userId } },
       orderBy: { createdAt: 'asc' },
     })
   }

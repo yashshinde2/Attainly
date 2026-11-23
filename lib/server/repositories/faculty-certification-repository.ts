@@ -5,14 +5,8 @@ import type { FacultyCertificationInput, FacultyCertificationRepository } from '
 
 export class PrismaFacultyCertificationRepository implements FacultyCertificationRepository<FacultyCertification> {
   async listByUser(input: { institutionId: string; userId: string }): Promise<FacultyCertification[]> {
-    const profile = await prisma.facultyProfile.findUnique({
-      where: { institutionId_userId: input },
-      select: { id: true },
-    })
-    if (!profile) return []
-
     return prisma.facultyCertification.findMany({
-      where: { institutionId: input.institutionId, facultyProfileId: profile.id },
+      where: { institutionId: input.institutionId, facultyProfile: { userId: input.userId } },
       orderBy: { createdAt: 'desc' },
     })
   }

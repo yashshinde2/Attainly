@@ -1,7 +1,9 @@
 'use client'
 
-import Link from 'next/link'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { Loader2 } from 'lucide-react'
 
 export function SessionSwitchPrompt({
   name,
@@ -12,6 +14,18 @@ export function SessionSwitchPrompt({
   roleKey: string
   portalUrl: string
 }) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  const handleOpenWorkspace = () => {
+    startTransition(() => {
+      router.push(portalUrl)
+    })
+  }
+
+  const roleLabel = roleKey === 'INSTITUTION_ADMIN' ? 'Admin' : roleKey === 'FACULTY' ? 'Faculty' : 'Student'
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-background p-5">
       <div>
@@ -23,18 +37,38 @@ export function SessionSwitchPrompt({
       </div>
 
       <div className="flex flex-col gap-2 pt-2">
-        <Link
-          href={portalUrl}
-          className="rounded-xl bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-        >
-          Open {roleKey === 'INSTITUTION_ADMIN' ? 'Admin' : roleKey === 'FACULTY' ? 'Faculty' : 'Student'} Workspace &rarr;
-        </Link>
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          disabled={isPending || isSigningOut}
+          onClick={handleOpenWorkspace}
+          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground shadow-sm transition active:scale-[0.98] hover:opacity-90 disabled:opacity-80 disabled:cursor-wait"
         >
-          Sign out &amp; switch account
+          {isPending ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              <span>Opening {roleLabel} Workspace…</span>
+            </>
+          ) : (
+            <span>Open {roleLabel} Workspace &rarr;</span>
+          )}
+        </button>
+        <button
+          type="button"
+          disabled={isPending || isSigningOut}
+          onClick={() => {
+            setIsSigningOut(true)
+            signOut({ callbackUrl: '/login' })
+          }}
+          className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+        >
+          {isSigningOut ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              <span>Signing out…</span>
+            </>
+          ) : (
+            <span>Sign out &amp; switch account</span>
+          )}
         </button>
       </div>
     </div>
