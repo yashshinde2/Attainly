@@ -79,7 +79,7 @@ The role-based permission system controls access to all repository actions:
 - `achievement:read_own`, `achievement:create_own`, `achievement:edit_own`, `achievement:delete_own`
 - `record:verify` (review and approve/reject claims for Admin and Faculty)
 - `event:create`, `event:archive`, `event:enter_results`, `event:participate`
-- `department:manage`, `course:manage`, `user:manage`, `user:import`
+- `department:manage`, `course:manage`, `institution:manage`, `user:manage`, `user:import`
 - `document:upload`, `document:read_own`
 
 ## User Account Provisioning & Security

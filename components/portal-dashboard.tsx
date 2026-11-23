@@ -29,7 +29,6 @@ const portalConfig = {
       ['Overview', '/student', LayoutDashboard],
       ['Courses', '/student/courses', BookOpen],
       ['Events', '/student/events', CalendarDays],
-      ['Profile', '/student/profile', UsersRound],
     ],
   },
   faculty: {
@@ -41,7 +40,6 @@ const portalConfig = {
       ['Overview', '/faculty', LayoutDashboard],
       ['Courses', '/faculty/courses', BookOpen],
       ['Events', '/faculty/events', CalendarDays],
-      ['Profile', '/faculty/profile', UsersRound],
     ],
   },
   admin: {
@@ -53,6 +51,7 @@ const portalConfig = {
       ['Overview', '/admin', LayoutDashboard],
       ['People', '/admin/people', UsersRound],
       ['Departments', '/admin/departments', BookOpen],
+      ['Courses', '/admin/courses', GraduationCap],
       ['Events', '/admin/events', CalendarDays],
       ['Settings', '/admin/settings', Settings2],
     ],

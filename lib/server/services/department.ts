@@ -23,6 +23,7 @@ export interface DepartmentRepository<TDepartment, TCourse> {
   createDepartment(input: { institutionId: string; data: DepartmentInput }): Promise<TDepartment>
   listCourses(input: { institutionId: string; departmentId?: string }): Promise<TCourse[]>
   createCourse(input: { institutionId: string; data: CourseInput }): Promise<TCourse>
+  deleteCourse(input: { institutionId: string; id: string }): Promise<void>
 }
 
 export async function listInstitutionDepartments<TDepartment, TCourse>(input: {
@@ -48,7 +49,14 @@ export async function listInstitutionCourses<TDepartment, TCourse>(input: {
   repository: DepartmentRepository<TDepartment, TCourse>
   departmentId?: string
 }): Promise<TCourse[]> {
-  requirePermission(input.principal, 'course:manage')
+  // Allow if has course:manage, or student_profile:read_own, or faculty_profile:read_own
+  const hasCourseManage = input.principal.permissions.includes('course:manage')
+  const hasStudentRead = input.principal.permissions.includes('student_profile:read_own')
+  const hasFacultyRead = input.principal.permissions.includes('faculty_profile:read_own')
+  if (!hasCourseManage && !hasStudentRead && !hasFacultyRead) {
+    requirePermission(input.principal, 'course:manage')
+  }
+
   return input.repository.listCourses({
     institutionId: input.principal.institutionId,
     departmentId: input.departmentId,
@@ -63,4 +71,16 @@ export async function createInstitutionCourse<TDepartment, TCourse>(input: {
   requirePermission(input.principal, 'course:manage')
   const data = courseInput.parse(input.data)
   return input.repository.createCourse({ institutionId: input.principal.institutionId, data })
+}
+
+export async function deleteInstitutionCourse<TDepartment, TCourse>(input: {
+  principal: AuthenticatedPrincipal
+  repository: DepartmentRepository<TDepartment, TCourse>
+  id: string
+}): Promise<void> {
+  requirePermission(input.principal, 'course:manage')
+  return input.repository.deleteCourse({
+    institutionId: input.principal.institutionId,
+    id: input.id,
+  })
 }

@@ -81,6 +81,7 @@ const permissionDefinitions = [
   { key: 'event:participate', description: 'Self-register interest or participate in events.' },
   { key: 'department:manage', description: 'Manage academic departments.' },
   { key: 'course:manage', description: 'Manage academic courses.' },
+  { key: 'institution:manage', description: 'Manage institution profile and settings.' },
   { key: 'user:manage', description: 'Manage users across the institution.' },
   { key: 'user:import', description: 'Import users from CSV.' },
   { key: 'document:upload', description: 'Upload supporting proof documents.' },
@@ -94,6 +95,7 @@ const roleDefinitions = [
     permissions: [
       'department:manage',
       'course:manage',
+      'institution:manage',
       'user:manage',
       'user:import',
       'event:create',

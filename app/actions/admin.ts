@@ -6,8 +6,17 @@ import { getCurrentPrincipal } from '@/lib/server/current-principal'
 import { PrismaDepartmentRepository } from '@/lib/server/repositories/department-repository'
 import { PrismaInstitutionUserRepository } from '@/lib/server/repositories/institution-user-repository'
 import { PrismaUserImportRepository } from '@/lib/server/repositories/user-import-repository'
-import { createInstitutionDepartment } from '@/lib/server/services/department'
+import {
+  createInstitutionDepartment,
+  createInstitutionCourse,
+  deleteInstitutionCourse,
+} from '@/lib/server/services/department'
 import { createInstitutionUser, resetInstitutionUserPassword } from '@/lib/server/services/institution-user'
+import {
+  updateInstitutionSettings,
+  addCriterionReferenceCode,
+  type CriterionReferenceItem,
+} from '@/lib/server/services/institution'
 import { importUsersFromCsv, type CreatedImportUser, type UserImportResult } from '@/lib/server/services/user-import'
 
 export type AdminActionState = {
@@ -25,6 +34,7 @@ export type AdminActionState = {
     email: string
     temporaryPassword: string
   }
+  newCriterion?: CriterionReferenceItem
 }
 
 const departmentRepository = new PrismaDepartmentRepository()
@@ -50,10 +60,57 @@ export async function addDepartment(_previous: AdminActionState, formData: FormD
       }),
     )
     revalidatePath('/admin')
+    revalidatePath('/admin/departments')
     return { status: 'success', message: 'Department added successfully.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not add department.'
     return { status: 'error', message: message || 'Could not add department. Check the fields and try again.' }
+  }
+}
+
+export async function addCourse(_previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  try {
+    await runAuthorized('course:manage', (principal) =>
+      createInstitutionCourse({
+        principal,
+        repository: departmentRepository,
+        data: {
+          departmentId: emptyToNull(formData.get('departmentId')),
+          name: emptyToNull(formData.get('name')),
+          code: emptyToNull(formData.get('code')),
+          description: emptyToNull(formData.get('description')),
+        },
+      }),
+    )
+    revalidatePath('/admin')
+    revalidatePath('/admin/courses')
+    revalidatePath('/admin/departments')
+    revalidatePath('/student/courses')
+    revalidatePath('/faculty/courses')
+    return { status: 'success', message: 'Course added successfully.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not add course.'
+    return { status: 'error', message: message || 'Could not add course. Check the fields and try again.' }
+  }
+}
+
+export async function deleteCourseAction(courseId: string): Promise<AdminActionState> {
+  try {
+    await runAuthorized('course:manage', (principal) =>
+      deleteInstitutionCourse({
+        principal,
+        repository: departmentRepository,
+        id: courseId,
+      }),
+    )
+    revalidatePath('/admin/courses')
+    revalidatePath('/admin/departments')
+    revalidatePath('/student/courses')
+    revalidatePath('/faculty/courses')
+    return { status: 'success', message: 'Course deleted successfully.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not delete course.'
+    return { status: 'error', message: message || 'Could not delete course.' }
   }
 }
 
@@ -79,6 +136,7 @@ export async function addUser(_previous: AdminActionState, formData: FormData): 
       }),
     )
     revalidatePath('/admin')
+    revalidatePath('/admin/people')
     return {
       status: 'success',
       message: 'User created successfully.',
@@ -122,6 +180,7 @@ export async function importUsersCsvAction(_previous: AdminActionState, formData
     )
 
     revalidatePath('/admin')
+    revalidatePath('/admin/people')
     return {
       status: 'success',
       message: `Successfully imported ${result.count} users (${result.skippedCount} skipped/duplicates).`,
@@ -151,6 +210,7 @@ export async function resetUserPasswordAction(userId: string): Promise<AdminActi
     )
 
     revalidatePath('/admin')
+    revalidatePath('/admin/people')
     return {
       status: 'success',
       message: 'Password reset successfully.',
@@ -163,5 +223,50 @@ export async function resetUserPasswordAction(userId: string): Promise<AdminActi
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not reset password.'
     return { status: 'error', message: message || 'Could not reset password.' }
+  }
+}
+
+export async function updateInstitutionSettingsAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await runAuthorized('institution:manage', (principal) =>
+      updateInstitutionSettings({
+        principal,
+        data: {
+          name: emptyToNull(formData.get('name')),
+          logoUrl: emptyToNull(formData.get('logoUrl')),
+        },
+      }),
+    )
+    revalidatePath('/admin')
+    revalidatePath('/admin/settings')
+    return { status: 'success', message: 'Institution settings updated successfully.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not update institution settings.'
+    return { status: 'error', message: message || 'Could not update institution settings.' }
+  }
+}
+
+export async function addCriterionCodeAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    const item = await runAuthorized('institution:manage', (principal) =>
+      addCriterionReferenceCode({
+        principal,
+        data: {
+          code: emptyToNull(formData.get('code')),
+          label: emptyToNull(formData.get('label')),
+        },
+      }),
+    )
+    revalidatePath('/admin/settings')
+    return { status: 'success', message: `Criterion "${item.code}" added successfully.`, newCriterion: item }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not add criterion code.'
+    return { status: 'error', message: message || 'Could not add criterion code.' }
   }
 }
