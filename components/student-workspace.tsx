@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { calculateStudentCompleteness } from '@/lib/completeness'
 import {
   saveStudentProfile,
   addStudentAchievement,
@@ -1832,17 +1833,23 @@ export function StudentWorkspace({
   const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   // Profile Completeness Calculation
-  const sections = [
-    Boolean(profile?.enrollmentNumber || profile?.departmentId || profile?.phone),
-    education.length > 0 || semesters.length > 0,
-    achievements.length > 0 || participations.length > 0,
-    certifications.length > 0,
-    researchPapers.length > 0 || patents.length > 0,
-    projects.length > 0 || internships.length > 0,
-    skills.length > 0,
-  ]
-  const completedSections = sections.filter(Boolean).length
-  const completenessPercentage = Math.round((completedSections / sections.length) * 100)
+  const {
+    percentage: completenessPercentage,
+    completedSections,
+    totalSections,
+  } = calculateStudentCompleteness({
+    hasPersonalInfo: Boolean(profile?.enrollmentNumber || profile?.departmentId || profile?.phone),
+    educationCount: education.length,
+    semesterCount: semesters.length,
+    achievementCount: achievements.length,
+    participationCount: participations.length,
+    certificationCount: certifications.length,
+    researchPaperCount: researchPapers.length,
+    patentCount: patents.length,
+    projectCount: projects.length,
+    internshipCount: internships.length,
+    skillCount: skills.length,
+  })
 
   // Event recognitions for achievements stream
   const eventRecognitions = participations.filter(
@@ -1907,7 +1914,7 @@ export function StudentWorkspace({
             </span>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {completedSections} of {sections.length} core profile areas completed.
+            {completedSections} of {totalSections} core profile areas completed.
           </p>
         </div>
         <div className="w-full sm:w-64">

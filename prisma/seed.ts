@@ -84,6 +84,7 @@ const permissionDefinitions = [
   { key: 'institution:manage', description: 'Manage institution profile and settings.' },
   { key: 'user:manage', description: 'Manage users across the institution.' },
   { key: 'user:import', description: 'Import users from CSV.' },
+  { key: 'report:view', description: 'View and export institutional accreditation and analytics reports.' },
   { key: 'document:upload', description: 'Upload supporting proof documents.' },
   { key: 'document:read_own', description: 'Read owned proof documents.' },
 ]
@@ -102,6 +103,7 @@ const roleDefinitions = [
       'event:archive',
       'event:enter_results',
       'record:verify',
+      'report:view',
     ],
   },
   {

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  BarChart3,
   BookOpen,
   CalendarDays,
   ChevronDown,
@@ -53,6 +54,7 @@ const portalConfig = {
       ['Departments', '/admin/departments', BookOpen],
       ['Courses', '/admin/courses', GraduationCap],
       ['Events', '/admin/events', CalendarDays],
+      ['Reports', '/admin/reports', BarChart3],
       ['Settings', '/admin/settings', Settings2],
     ],
   },

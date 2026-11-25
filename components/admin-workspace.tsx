@@ -20,6 +20,7 @@ import type { UserWithRole } from '@/lib/server/repositories/institution-user-re
 import type { CriterionReferenceItem } from '@/lib/server/services/institution'
 import { PendingVerifications } from '@/components/pending-verifications'
 import type { PendingVerificationItem } from '@/lib/server/services/verification'
+import type { AdminAttentionInsights } from '@/lib/server/services/reports'
 import {
   BookOpen,
   CalendarDays,
@@ -1033,6 +1034,7 @@ export function AdminWorkspace({
   events = [],
   pendingVerifications = [],
   courseCount = 0,
+  attentionInsights,
 }: {
   departments: DepartmentWithCourseCount[]
   users: UserWithRole[]
@@ -1040,6 +1042,7 @@ export function AdminWorkspace({
   events?: EventWithDetails[]
   pendingVerifications?: PendingVerificationItem[]
   courseCount?: number
+  attentionInsights?: AdminAttentionInsights
 }) {
   return (
     <div className="mt-8 flex flex-col gap-8">
@@ -1109,6 +1112,60 @@ export function AdminWorkspace({
           </p>
         </Link>
       </div>
+
+      {/* Needs Attention Insights Strip */}
+      {attentionInsights && (
+        <section aria-labelledby="needs-attention-heading" className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 id="needs-attention-heading" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Needs attention
+            </h2>
+            <Link href="/admin/reports" className="text-xs font-medium text-primary hover:underline">
+              Open Reports &rarr;
+            </Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Link
+              href="/admin/reports?type=VERIFICATION_AGING"
+              className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3 transition hover:border-primary/50"
+            >
+              <div>
+                <p className="text-xs text-muted-foreground">Pending &gt; 7 days</p>
+                <p className="mt-0.5 text-lg font-bold text-foreground">
+                  {attentionInsights.pendingOver7DaysCount}
+                </p>
+              </div>
+              <span className="text-xs font-medium text-primary">View &rarr;</span>
+            </Link>
+
+            <Link
+              href="/admin/reports?type=COMPLETENESS_LAGGARDS"
+              className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3 transition hover:border-primary/50"
+            >
+              <div>
+                <p className="text-xs text-muted-foreground">Depts &lt; 50% completeness</p>
+                <p className="mt-0.5 text-lg font-bold text-foreground">
+                  {attentionInsights.departmentsBelow50Count}
+                </p>
+              </div>
+              <span className="text-xs font-medium text-primary">View &rarr;</span>
+            </Link>
+
+            <Link
+              href="/admin/reports?type=CRITERION_COVERAGE"
+              className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3 transition hover:border-primary/50"
+            >
+              <div>
+                <p className="text-xs text-muted-foreground">Zero-coverage criteria</p>
+                <p className="mt-0.5 text-lg font-bold text-foreground">
+                  {attentionInsights.zeroCoverageCriteriaCount}
+                </p>
+              </div>
+              <span className="text-xs font-medium text-primary">View &rarr;</span>
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Pending Verifications */}
       <section aria-labelledby="verifications-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">

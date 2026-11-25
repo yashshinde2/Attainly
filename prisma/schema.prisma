@@ -86,6 +86,7 @@ model Institution {
   facultyResearchPapers FacultyResearchPaper[]
   facultyPatents FacultyPatent[]
   eventParticipations EventParticipation[]
+  savedReports SavedReport[]
 }
 
 model Department {
@@ -140,6 +141,7 @@ model User {
   student       StudentProfile?
   faculty       FacultyProfile?
   eventEntries  EventParticipation[]
+  savedReports  SavedReport[]
 
   @@id([institutionId, id])
   @@unique([institutionId, email])
@@ -540,4 +542,19 @@ model EventParticipation {
   @@id([institutionId, id])
   @@unique([institutionId, eventId, userId])
   @@index([institutionId, eventId, role])
+}
+
+model SavedReport {
+  id              String      @default(cuid())
+  institutionId   String      @map("institution_id")
+  name            String
+  entityType      String
+  filters         Json
+  createdByUserId String
+  createdAt       DateTime    @default(now())
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  createdBy       User        @relation(fields: [institutionId, createdByUserId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, createdAt])
 }

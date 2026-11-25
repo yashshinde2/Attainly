@@ -55,7 +55,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - **Student Portal (`/student`)**: Maintain institutional identity (enrollment number, department, current semester, admission year), personal contacts, social links, profile photos, track verified extracurricular achievements, manage formal education history, semester-by-semester academic grades (SGPA/CGPA), certifications, research publications, patent filings, projects, internships (with stipend & PPO/job conversion tracking), technical & soft skills, tag claims to NAAC/NBA accreditation criteria, calculate real-time profile completeness, generate live resume previews and download PDF resumes powered by `@react-pdf/renderer`.
 - **Faculty Portal (`/faculty`)**: Maintain office contacts, profile photos, LinkedIn and ResearchGate/ORCID research profiles, academic qualifications, teaching and industry experiences, research publications, patent filings, institutional event participation, certifications, and tag claims to accreditation criteria, with full inline edit/delete and verification status badges.
-- **Institution Admin Console (`/admin`, `/admin/events`)**: Manage academic departments, invite and provision institution users, schedule campus events, bulk-record participant/winner/organizer outcomes in a single submission, and review/verify student and faculty submitted claims (Approve/Reject).
+- **Institution Admin Console (`/admin`, `/admin/events`, `/admin/reports`)**: Manage academic departments, courses, and institution settings, invite and provision institution users, schedule campus events, bulk-record participant/winner/organizer outcomes, review/verify student and faculty submitted claims (Approve/Reject), and run institutional analytics & accreditation reports (`/admin/reports`) with quick reports, custom filters, saved report definitions, verification aging, profile completeness laggards, criterion coverage gaps, and CSV/PDF export.
 
 ## Permissions
 
@@ -79,7 +79,7 @@ The role-based permission system controls access to all repository actions:
 - `achievement:read_own`, `achievement:create_own`, `achievement:edit_own`, `achievement:delete_own`
 - `record:verify` (review and approve/reject claims for Admin and Faculty)
 - `event:create`, `event:archive`, `event:enter_results`, `event:participate`
-- `department:manage`, `course:manage`, `institution:manage`, `user:manage`, `user:import`
+- `department:manage`, `course:manage`, `institution:manage`, `user:manage`, `user:import`, `report:view`
 - `document:upload`, `document:read_own`
 
 ## User Account Provisioning & Security
