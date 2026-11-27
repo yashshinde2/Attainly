@@ -46,6 +46,10 @@ export class PrismaFacultyCertificationRepository implements FacultyCertificatio
       data: {
         ...input.data,
         verificationStatus: 'PENDING', // Reset verification on edit
+        verifiedByUserId: null,
+        verifiedAt: null,
+        rejectionReason: null,
+        version: { increment: 1 },
       },
     })
   }

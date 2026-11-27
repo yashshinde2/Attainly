@@ -2,9 +2,16 @@ import 'server-only'
 import { requirePermission, type AuthenticatedPrincipal, type PermissionKey } from './authorization'
 
 export class AuthenticationRequiredError extends Error {
-  constructor() {
-    super('Authentication is required.')
+  constructor(message = 'Authentication is required.') {
+    super(message)
     this.name = 'AuthenticationRequiredError'
+  }
+}
+
+export class PasswordChangeRequiredError extends AuthenticationRequiredError {
+  constructor() {
+    super('Password change is required before accessing this resource.')
+    this.name = 'PasswordChangeRequiredError'
   }
 }
 

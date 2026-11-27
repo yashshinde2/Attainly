@@ -1,17 +1,27 @@
 import 'server-only'
 import { hash } from 'bcryptjs'
 import { prisma } from '@/lib/server/db'
-import type { User, Role } from '@/generated/prisma/client'
+import type { Prisma, Role } from '@/generated/prisma/client'
 import { generateTemporaryPassword } from '../password'
 import type { CreateInstitutionUserInput, InstitutionUserRepository } from '../services/institution-user'
 
-export type UserWithRole = User & { role: Role }
+export type UserWithRole = Prisma.UserGetPayload<{
+  include: {
+    role: true
+    student: { include: { department: true; course: true } }
+    faculty: { include: { department: true } }
+  }
+}>
 
 export class PrismaInstitutionUserRepository implements InstitutionUserRepository<UserWithRole, Role> {
   async listUsers(input: { institutionId: string }): Promise<UserWithRole[]> {
     return prisma.user.findMany({
       where: { institutionId: input.institutionId },
-      include: { role: true },
+      include: {
+        role: true,
+        student: { include: { department: true, course: true } },
+        faculty: { include: { department: true } },
+      },
       orderBy: { createdAt: 'desc' },
     })
   }
@@ -58,6 +68,8 @@ export class PrismaInstitutionUserRepository implements InstitutionUserRepositor
         },
         include: {
           role: true,
+          student: { include: { department: true, course: true } },
+          faculty: { include: { department: true } },
         },
       })
 
@@ -90,7 +102,11 @@ export class PrismaInstitutionUserRepository implements InstitutionUserRepositor
   }): Promise<{ user: UserWithRole; temporaryPassword: string }> {
     const user = await prisma.user.findFirst({
       where: { id: input.userId, institutionId: input.institutionId },
-      include: { role: true },
+      include: {
+        role: true,
+        student: { include: { department: true, course: true } },
+        faculty: { include: { department: true } },
+      },
     })
 
     if (!user) {
@@ -108,6 +124,8 @@ export class PrismaInstitutionUserRepository implements InstitutionUserRepositor
       },
       include: {
         role: true,
+        student: { include: { department: true, course: true } },
+        faculty: { include: { department: true } },
       },
     })
 

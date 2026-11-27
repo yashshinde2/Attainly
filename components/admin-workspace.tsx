@@ -11,6 +11,9 @@ import {
   resetUserPasswordAction,
   updateInstitutionSettingsAction,
   addCriterionCodeAction,
+  updateStudentIdentityAction,
+  updateFacultyIdentityAction,
+  toggleUserActiveAction,
   type AdminActionState,
 } from '@/app/actions/admin'
 import type { Role } from '@/generated/prisma/client'
@@ -21,6 +24,7 @@ import type { CriterionReferenceItem } from '@/lib/server/services/institution'
 import { PendingVerifications } from '@/components/pending-verifications'
 import type { PendingVerificationItem } from '@/lib/server/services/verification'
 import type { AdminAttentionInsights } from '@/lib/server/services/reports'
+import { escapeCsvCell } from '@/lib/csv'
 import {
   BookOpen,
   CalendarDays,
@@ -478,7 +482,7 @@ export function BulkImportForm() {
   const downloadCredentialsCsv = (users: Array<{ email: string; name: string; roleKey: string; temporaryPassword: string }>) => {
     const csvRows = ['Email,Name,Role,TemporaryPassword']
     for (const u of users) {
-      csvRows.push(`"${u.email}","${u.name}","${u.roleKey}","${u.temporaryPassword}"`)
+      csvRows.push([u.email, u.name, u.roleKey, u.temporaryPassword].map(escapeCsvCell).join(','))
     }
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -619,9 +623,13 @@ export function BulkImportForm() {
 export function UserManagement({
   users,
   roles,
+  departments = [],
+  courses = [],
 }: {
   users: UserWithRole[]
   roles: Role[]
+  departments?: DepartmentWithCourseCount[]
+  courses?: CourseWithDepartment[]
 }) {
   const [userTab, setUserTab] = useState<'single' | 'bulk'>('single')
   const [resetModal, setResetModal] = useState<{
@@ -630,7 +638,14 @@ export function UserManagement({
     temporaryPassword?: string
     error?: string
   }>({ open: false })
+  const [identityModalUser, setIdentityModalUser] = useState<UserWithRole | null>(null)
+  const [identityState, identityAction, isSavingIdentity] = useActionState(
+    identityModalUser?.role.key === 'FACULTY' ? updateFacultyIdentityAction : updateStudentIdentityAction,
+    initialState,
+  )
   const [isResetting, startResetTransition] = useTransition()
+  const [isTogglingStatus, startToggleTransition] = useTransition()
+  const [statusError, setStatusError] = useState<string | null>(null)
 
   const handleResetPassword = (user: UserWithRole) => {
     startResetTransition(async () => {
@@ -648,6 +663,14 @@ export function UserManagement({
           error: res.message || 'Failed to reset password.',
         })
       }
+    })
+  }
+
+  const handleToggleActive = (user: UserWithRole) => {
+    setStatusError(null)
+    startToggleTransition(async () => {
+      const res = await toggleUserActiveAction(user.id, !user.isActive)
+      if (res.status === 'error') setStatusError(res.message)
     })
   }
 
@@ -751,6 +774,175 @@ export function UserManagement({
         </div>
       )}
 
+      {statusError && (
+        <p role="alert" className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          {statusError}
+        </p>
+      )}
+
+      {/* Institutional Identity Editor Modal */}
+      {identityModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-foreground">
+                Institutional Identity — {identityModalUser.firstName} {identityModalUser.lastName}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIdentityModalUser(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form action={identityAction} className="mt-4 flex flex-col gap-4">
+              <input type="hidden" name="userId" value={identityModalUser.id} />
+              {identityModalUser.role.key === 'STUDENT' ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="admin-enrollment" className={labelClass}>Enrollment / Roll Number</label>
+                      <input
+                        id="admin-enrollment"
+                        name="enrollmentNumber"
+                        defaultValue={identityModalUser.student?.enrollmentNumber ?? ''}
+                        className={fieldClass}
+                        placeholder="e.g. EN2026-CSE-0042"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="admin-semester" className={labelClass}>Current Semester</label>
+                      <select
+                        id="admin-semester"
+                        name="currentSemester"
+                        defaultValue={identityModalUser.student?.currentSemester ?? ''}
+                        className={fieldClass}
+                      >
+                        <option value="">Unassigned</option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                          <option key={s} value={s}>Semester {s}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label htmlFor="admin-student-dept" className={labelClass}>Department</label>
+                      <select
+                        id="admin-student-dept"
+                        name="departmentId"
+                        defaultValue={identityModalUser.student?.departmentId ?? ''}
+                        className={fieldClass}
+                      >
+                        <option value="">Unassigned</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="admin-student-course" className={labelClass}>Course</label>
+                      <select
+                        id="admin-student-course"
+                        name="courseId"
+                        defaultValue={identityModalUser.student?.courseId ?? ''}
+                        className={fieldClass}
+                      >
+                        <option value="">Unassigned</option>
+                        {courses.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="admin-admission-year" className={labelClass}>Admission Year</label>
+                      <input
+                        id="admin-admission-year"
+                        name="admissionYear"
+                        type="number"
+                        min={1990}
+                        max={2100}
+                        defaultValue={identityModalUser.student?.admissionYear ?? ''}
+                        className={fieldClass}
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="admin-employee-id" className={labelClass}>Employee ID</label>
+                    <input
+                      id="admin-employee-id"
+                      name="employeeId"
+                      defaultValue={identityModalUser.faculty?.employeeId ?? ''}
+                      className={fieldClass}
+                      placeholder="e.g. FAC-2026-014"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="admin-faculty-dept" className={labelClass}>Department</label>
+                    <select
+                      id="admin-faculty-dept"
+                      name="departmentId"
+                      defaultValue={identityModalUser.faculty?.departmentId ?? ''}
+                      className={fieldClass}
+                    >
+                      <option value="">Unassigned</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="admin-designation" className={labelClass}>Designation</label>
+                    <input
+                      id="admin-designation"
+                      name="designation"
+                      defaultValue={identityModalUser.faculty?.designation ?? ''}
+                      className={fieldClass}
+                      placeholder="e.g. Associate Professor"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="admin-emp-status" className={labelClass}>Employment Status</label>
+                    <select
+                      id="admin-emp-status"
+                      name="employmentStatus"
+                      defaultValue={identityModalUser.faculty?.employmentStatus ?? 'ACTIVE'}
+                      className={fieldClass}
+                    >
+                      <option value="ACTIVE">Active</option>
+                      <option value="ON_LEAVE">On Leave</option>
+                      <option value="VISITING">Visiting</option>
+                      <option value="INACTIVE">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+              <ActionMessage state={identityState} />
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIdentityModalUser(null)}
+                  className="rounded-xl bg-secondary px-4 py-2 text-xs font-semibold text-secondary-foreground"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingIdentity}
+                  className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  {isSavingIdentity ? 'Saving…' : 'Save Identity'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         {users.length ? (
           <div className="overflow-x-auto">
@@ -792,15 +984,38 @@ export function UserManagement({
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
                     <td className="py-3.5 text-right">
-                      <button
-                        type="button"
-                        disabled={isResetting}
-                        onClick={() => handleResetPassword(user)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted disabled:opacity-50"
-                      >
-                        <KeyRound size={12} />
-                        <span>Reset password</span>
-                      </button>
+                      <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                        {(user.role.key === 'STUDENT' || user.role.key === 'FACULTY') && (
+                          <button
+                            type="button"
+                            onClick={() => setIdentityModalUser(user)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted"
+                          >
+                            Identity
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={isResetting}
+                          onClick={() => handleResetPassword(user)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted disabled:opacity-50"
+                        >
+                          <KeyRound size={12} />
+                          <span>Reset password</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isTogglingStatus}
+                          onClick={() => handleToggleActive(user)}
+                          className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
+                            user.isActive
+                              ? 'border-destructive/30 text-destructive hover:bg-destructive/10'
+                              : 'border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10'
+                          }`}
+                        >
+                          {user.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

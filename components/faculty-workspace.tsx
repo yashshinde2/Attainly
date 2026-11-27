@@ -21,13 +21,13 @@ import {
   type FacultyActionState,
 } from '@/app/actions/faculty'
 import type {
-  FacultyProfile,
   FacultyEducation,
   FacultyExperience,
   FacultyCertification,
   FacultyResearchPaper,
   FacultyPatent,
 } from '@/generated/prisma/client'
+import type { FacultyProfileWithDetails } from '@/lib/server/repositories/faculty-profile-repository'
 import type { EventParticipationWithEvent } from '@/lib/server/repositories/event-repository'
 
 const initialState: FacultyActionState = { status: 'idle', message: '' }
@@ -197,11 +197,41 @@ function PhotoUploadField({ defaultValue = '' }: { defaultValue?: string }) {
 
 // ---------------- Tab 1: Personal ----------------
 
-function ProfileForm({ profile }: { profile: FacultyProfile | null }) {
+function ProfileForm({ profile }: { profile: FacultyProfileWithDetails | null }) {
   const [state, action, pending] = useActionState(saveFacultyProfile, initialState)
   return (
     <form action={action} className="flex flex-col gap-5">
       <PhotoUploadField defaultValue={profile?.photoUrl ?? ''} />
+
+      {/* Faculty Institutional Identity (Read-Only, Managed by Institution Administration) */}
+      <div className="rounded-xl border border-border bg-muted/30 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold text-foreground">Institutional Identity</h3>
+          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            Managed by Institution Administration
+          </span>
+        </div>
+        <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-muted-foreground">Employee ID</p>
+            <p className="mt-1 font-semibold text-foreground">{profile?.employeeId ?? 'Not assigned'}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Department</p>
+            <p className="mt-1 font-semibold text-foreground">
+              {profile?.department ? `${profile.department.name} (${profile.department.code})` : 'Not assigned'}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Designation</p>
+            <p className="mt-1 font-semibold text-foreground">{profile?.designation ?? 'Not assigned'}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Employment Status</p>
+            <p className="mt-1 font-semibold text-foreground">{profile?.employmentStatus?.replace(/_/g, ' ') ?? 'ACTIVE'}</p>
+          </div>
+        </div>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -1075,7 +1105,7 @@ export function FacultyWorkspace({
   patents = [],
   participations = [],
 }: {
-  profile: FacultyProfile | null
+  profile: FacultyProfileWithDetails | null
   education: FacultyEducation[]
   experiences: FacultyExperience[]
   certifications: FacultyCertification[]

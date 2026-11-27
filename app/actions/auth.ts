@@ -8,6 +8,7 @@ import { encode } from 'next-auth/jwt'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/server/db'
+import { getCurrentPrincipal } from '@/lib/server/current-principal'
 
 export type ChangePasswordState = {
   status: 'idle' | 'success' | 'error'
@@ -35,13 +36,9 @@ export async function changePasswordAction(
   let targetPortal = '/'
 
   try {
+    const principal = await getCurrentPrincipal({ allowMustChangePassword: true })
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id || !session.user.institutionId) {
-      return { status: 'error', message: 'You must be signed in to change your password.' }
-    }
-
-    const { id: userId, institutionId, roleId, roleKey } = session.user
-    const permissions = Array.isArray(session.user.permissions) ? [...session.user.permissions] : []
+    const roleKey = session?.user?.roleKey ?? ''
 
     const newPassword = formData.get('newPassword')
     const confirmPassword = formData.get('confirmPassword')
@@ -54,20 +51,34 @@ export async function changePasswordAction(
 
     const passwordHash = await hash(parsed.data.newPassword, 12)
 
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: {
         institutionId_id: {
-          institutionId,
-          id: userId,
+          institutionId: principal.institutionId,
+          id: principal.userId,
         },
       },
       data: {
         passwordHash,
         mustChangePassword: false,
       },
+      select: {
+        id: true,
+        institutionId: true,
+        roleId: true,
+        role: {
+          select: {
+            key: true,
+            rolePermissions: { select: { permission: { select: { key: true } } } },
+          },
+        },
+      },
     })
 
-    // Re-issue JWT cookie with mustChangePassword = false so middleware immediately permits portal access
+    const freshRoleKey = updatedUser.role.key || roleKey
+    const freshPermissions = updatedUser.role.rolePermissions.map(({ permission }) => permission.key)
+
+    // Re-issue JWT cookie with mustChangePassword = false and fresh role/permissions
     const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET
     if (secret) {
       const isProduction = process.env.NODE_ENV === 'production'
@@ -76,11 +87,11 @@ export async function changePasswordAction(
 
       const updatedJwt = await encode({
         token: {
-          sub: userId,
-          institutionId,
-          roleId,
-          roleKey,
-          permissions,
+          sub: updatedUser.id,
+          institutionId: updatedUser.institutionId,
+          roleId: updatedUser.roleId,
+          roleKey: freshRoleKey,
+          permissions: freshPermissions,
           mustChangePassword: false,
         },
         secret,
@@ -103,7 +114,7 @@ export async function changePasswordAction(
       }
     }
 
-    targetPortal = portalByRole[roleKey] ?? '/'
+    targetPortal = portalByRole[freshRoleKey] ?? '/'
   } catch (error: any) {
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error

@@ -21,11 +21,11 @@ export default async function ChangePasswordPage() {
         id: session.user.id,
       },
     },
-    select: { mustChangePassword: true },
+    select: { isActive: true, mustChangePassword: true },
   })
 
-  // If the user in DB does not require a password change, delegate cookie synchronization to the Route Handler
-  if (!dbUser?.mustChangePassword) {
+  // If disabled/deleted or does not require password change, delegate to /api/auth/sync
+  if (!dbUser || !dbUser.isActive || !dbUser.mustChangePassword) {
     redirect('/api/auth/sync')
   }
 

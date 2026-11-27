@@ -71,9 +71,6 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
 // ---------------- Profile ----------------
 export async function saveStudentProfile(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
   try {
-    const admissionYearRaw = emptyToNull(formData.get('admissionYear'))
-    const currentSemesterRaw = emptyToNull(formData.get('currentSemester'))
-
     await runAuthorized('student_profile:edit_own', (auth) => updateOwnStudentProfile({
       principal: auth,
       repository: profileRepository,
@@ -81,11 +78,6 @@ export async function saveStudentProfile(_previous: StudentActionState, formData
         dateOfBirth: emptyToNull(formData.get('dateOfBirth')) ? new Date(`${formData.get('dateOfBirth')}T12:00:00`) : null,
         phone: emptyToNull(formData.get('phone')),
         address: emptyToNull(formData.get('address')),
-        enrollmentNumber: emptyToNull(formData.get('enrollmentNumber')),
-        departmentId: emptyToNull(formData.get('departmentId')),
-        courseId: emptyToNull(formData.get('courseId')),
-        admissionYear: admissionYearRaw ? parseInt(admissionYearRaw, 10) : null,
-        currentSemester: currentSemesterRaw ? parseInt(currentSemesterRaw, 10) : null,
         linkedinUrl: emptyToNull(formData.get('linkedinUrl')),
         githubUrl: emptyToNull(formData.get('githubUrl')),
         portfolioUrl: emptyToNull(formData.get('portfolioUrl')),

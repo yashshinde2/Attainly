@@ -1,6 +1,9 @@
 import 'server-only'
 import { z } from 'zod'
 import { requirePermission, type AuthenticatedPrincipal } from '../authorization'
+import { PrismaDocumentRepository } from '../repositories/document-repository'
+
+const documentRepository = new PrismaDocumentRepository()
 
 function checkPerm(principal: AuthenticatedPrincipal, specific: string, fallback: string) {
   const perm = principal.permissions.includes(specific) ? specific : fallback
@@ -41,6 +44,11 @@ export async function updateOwnFacultyProfile<TProfile>(input: {
 }): Promise<TProfile> {
   checkPerm(input.principal, 'faculty_profile:edit_own', 'faculty_profile:edit_own')
   const data = profileInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.photoUrl,
+  })
   return input.repository.upsertByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -127,7 +135,10 @@ const facultyExperienceInput = z.object({
   description: z.string().trim().max(2000).nullable().optional(),
   startDate: z.coerce.date().nullable().optional(),
   endDate: z.coerce.date().nullable().optional(),
-})
+}).refine(
+  (v) => !v.startDate || !v.endDate || v.endDate >= v.startDate,
+  { message: 'End date cannot be earlier than start date.', path: ['endDate'] },
+)
 
 export type FacultyExperienceInput = z.infer<typeof facultyExperienceInput>
 
@@ -227,6 +238,11 @@ export async function addOwnFacultyCertification<TCertification>(input: {
 }): Promise<TCertification> {
   checkPerm(input.principal, 'faculty_certification:edit_own', 'faculty_profile:edit_own')
   const data = facultyCertificationInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.createByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -242,6 +258,11 @@ export async function updateOwnFacultyCertification<TCertification>(input: {
 }): Promise<TCertification> {
   checkPerm(input.principal, 'faculty_certification:edit_own', 'faculty_profile:edit_own')
   const data = facultyCertificationInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -299,6 +320,11 @@ export async function addOwnFacultyResearchPaper<TPaper>(input: {
 }): Promise<TPaper> {
   checkPerm(input.principal, 'faculty_research:edit_own', 'faculty_profile:edit_own')
   const data = facultyResearchPaperInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.createByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -314,6 +340,11 @@ export async function updateOwnFacultyResearchPaper<TPaper>(input: {
 }): Promise<TPaper> {
   checkPerm(input.principal, 'faculty_research:edit_own', 'faculty_profile:edit_own')
   const data = facultyResearchPaperInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -371,6 +402,11 @@ export async function addOwnFacultyPatent<TPatent>(input: {
 }): Promise<TPatent> {
   checkPerm(input.principal, 'faculty_patent:edit_own', 'faculty_profile:edit_own')
   const data = facultyPatentInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.createByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -386,6 +422,11 @@ export async function updateOwnFacultyPatent<TPatent>(input: {
 }): Promise<TPatent> {
   checkPerm(input.principal, 'faculty_patent:edit_own', 'faculty_profile:edit_own')
   const data = facultyPatentInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,

@@ -11,7 +11,13 @@ import {
   createInstitutionCourse,
   deleteInstitutionCourse,
 } from '@/lib/server/services/department'
-import { createInstitutionUser, resetInstitutionUserPassword } from '@/lib/server/services/institution-user'
+import {
+  createInstitutionUser,
+  resetInstitutionUserPassword,
+  updateStudentInstitutionalIdentity,
+  updateFacultyInstitutionalIdentity,
+  setInstitutionUserActive,
+} from '@/lib/server/services/institution-user'
 import {
   updateInstitutionSettings,
   addCriterionReferenceCode,
@@ -268,5 +274,78 @@ export async function addCriterionCodeAction(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not add criterion code.'
     return { status: 'error', message: message || 'Could not add criterion code.' }
+  }
+}
+
+export async function updateStudentIdentityAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    const admissionYearRaw = emptyToNull(formData.get('admissionYear'))
+    const currentSemesterRaw = emptyToNull(formData.get('currentSemester'))
+
+    await runAuthorized('user:manage', (principal) =>
+      updateStudentInstitutionalIdentity({
+        principal,
+        data: {
+          userId: emptyToNull(formData.get('userId')),
+          enrollmentNumber: emptyToNull(formData.get('enrollmentNumber')),
+          departmentId: emptyToNull(formData.get('departmentId')),
+          courseId: emptyToNull(formData.get('courseId')),
+          admissionYear: admissionYearRaw ? parseInt(admissionYearRaw, 10) : null,
+          currentSemester: currentSemesterRaw ? parseInt(currentSemesterRaw, 10) : null,
+        },
+      }),
+    )
+    revalidatePath('/admin/people')
+    revalidatePath('/student')
+    return { status: 'success', message: 'Student institutional identity updated.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not update student identity.'
+    return { status: 'error', message }
+  }
+}
+
+export async function updateFacultyIdentityAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await runAuthorized('user:manage', (principal) =>
+      updateFacultyInstitutionalIdentity({
+        principal,
+        data: {
+          userId: emptyToNull(formData.get('userId')),
+          employeeId: emptyToNull(formData.get('employeeId')),
+          departmentId: emptyToNull(formData.get('departmentId')),
+          designation: emptyToNull(formData.get('designation')),
+          employmentStatus: emptyToNull(formData.get('employmentStatus')) ?? 'ACTIVE',
+        },
+      }),
+    )
+    revalidatePath('/admin/people')
+    revalidatePath('/faculty')
+    return { status: 'success', message: 'Faculty institutional identity updated.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not update faculty identity.'
+    return { status: 'error', message }
+  }
+}
+
+export async function toggleUserActiveAction(
+  userId: string,
+  isActive: boolean,
+): Promise<AdminActionState> {
+  try {
+    await runAuthorized('user:manage', (principal) =>
+      setInstitutionUserActive({ principal, userId, isActive }),
+    )
+    revalidatePath('/admin/people')
+    revalidatePath('/admin')
+    return { status: 'success', message: isActive ? 'Account enabled.' : 'Account disabled.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not update account status.'
+    return { status: 'error', message }
   }
 }

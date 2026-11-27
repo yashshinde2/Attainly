@@ -1,3 +1,5 @@
+import { escapeCsvCell } from './csv'
+
 export type ReportEntityType =
   | 'ACHIEVEMENTS'
   | 'EVENTS'
@@ -31,17 +33,9 @@ export interface ReportTableResult {
 }
 
 export function buildCsvContent(result: ReportTableResult): string {
-  const escapeCell = (val: string | number | boolean | undefined | null) => {
-    const str = val === undefined || val === null ? '' : String(val)
-    if (/[",\n\r]/.test(str)) {
-      return `"${str.replace(/"/g, '""')}"`
-    }
-    return str
-  }
-
-  const header = result.columns.map((c) => escapeCell(c.label)).join(',')
+  const header = result.columns.map((c) => escapeCsvCell(c.label)).join(',')
   const body = result.rows.map((row) =>
-    result.columns.map((c) => escapeCell(row[c.key])).join(','),
+    result.columns.map((c) => escapeCsvCell(row[c.key])).join(','),
   )
   return [header, ...body].join('\r\n')
 }

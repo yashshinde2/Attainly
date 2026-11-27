@@ -2,6 +2,9 @@ import 'server-only'
 import { z } from 'zod'
 import { requirePermission, type AuthenticatedPrincipal } from '../authorization'
 import { prisma } from '@/lib/server/db'
+import { PrismaDocumentRepository } from '../repositories/document-repository'
+
+const documentRepository = new PrismaDocumentRepository()
 
 function checkPerm(principal: AuthenticatedPrincipal, specific: string, fallback: string) {
   const perm = principal.permissions.includes(specific) ? specific : fallback
@@ -9,15 +12,12 @@ function checkPerm(principal: AuthenticatedPrincipal, specific: string, fallback
 }
 
 // ---------------- Profile ----------------
+// Institutional identity fields (enrollmentNumber, departmentId, courseId, admissionYear, currentSemester)
+// are strictly managed by institutional staff and are NOT editable by students.
 const profileInput = z.object({
   dateOfBirth: z.coerce.date().nullable().optional(),
   phone: z.string().trim().max(40).nullable().optional(),
   address: z.string().trim().max(500).nullable().optional(),
-  enrollmentNumber: z.string().trim().max(60).nullable().optional(),
-  departmentId: z.string().trim().nullable().optional(),
-  courseId: z.string().trim().nullable().optional(),
-  admissionYear: z.coerce.number().int().min(1990).max(2100).nullable().optional(),
-  currentSemester: z.coerce.number().int().min(1).max(8).nullable().optional(),
   linkedinUrl: z.string().trim().max(2000).nullable().optional(),
   githubUrl: z.string().trim().max(2000).nullable().optional(),
   portfolioUrl: z.string().trim().max(2000).nullable().optional(),
@@ -49,33 +49,16 @@ export async function updateOwnStudentProfile<TProfile>(input: {
 }): Promise<TProfile> {
   checkPerm(input.principal, 'student_profile:edit_own', 'student_profile:edit_own')
   const data = profileInput.parse(input.data)
-
-  // Enforce enrollmentNumber uniqueness per institution if provided
-  if (data.enrollmentNumber) {
-    const existing = await prisma.studentProfile.findFirst({
-      where: {
-        institutionId: input.principal.institutionId,
-        enrollmentNumber: { equals: data.enrollmentNumber, mode: 'insensitive' },
-        userId: { not: input.principal.userId },
-      },
-    })
-    if (existing) {
-      throw new Error(`Enrollment number "${data.enrollmentNumber}" is already in use by another student.`)
-    }
-  }
-
-  try {
-    return await input.repository.upsertByUser({
-      institutionId: input.principal.institutionId,
-      userId: input.principal.userId,
-      data,
-    })
-  } catch (error: any) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-      throw new Error(`Enrollment number "${data.enrollmentNumber}" is already in use by another student.`)
-    }
-    throw error
-  }
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.photoUrl,
+  })
+  return input.repository.upsertByUser({
+    institutionId: input.principal.institutionId,
+    userId: input.principal.userId,
+    data,
+  })
 }
 
 // ---------------- Education ----------------
@@ -87,7 +70,10 @@ const educationInput = z.object({
   score: z.string().trim().max(50).nullable().optional(),
   startYear: z.coerce.number().int().min(1950).max(2100).nullable().optional(),
   endYear: z.coerce.number().int().min(1950).max(2100).nullable().optional(),
-})
+}).refine(
+  (v) => !v.startYear || !v.endYear || v.endYear >= v.startYear,
+  { message: 'End year cannot be earlier than start year.', path: ['endYear'] },
+)
 
 export type StudentEducationInput = z.infer<typeof educationInput>
 
@@ -187,6 +173,11 @@ export async function addOwnStudentCertification<TCertification>(input: {
 }): Promise<TCertification> {
   checkPerm(input.principal, 'student_certification:edit_own', 'student_profile:edit_own')
   const data = certificationInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
 
   // Duplicate prevention
   const profile = await prisma.studentProfile.findUnique({
@@ -223,6 +214,11 @@ export async function updateOwnStudentCertification<TCertification>(input: {
 }): Promise<TCertification> {
   checkPerm(input.principal, 'student_certification:edit_own', 'student_profile:edit_own')
   const data = certificationInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -280,6 +276,11 @@ export async function addOwnStudentResearchPaper<TPaper>(input: {
 }): Promise<TPaper> {
   checkPerm(input.principal, 'student_research:edit_own', 'student_profile:edit_own')
   const data = researchPaperInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.createByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -295,6 +296,11 @@ export async function updateOwnStudentResearchPaper<TPaper>(input: {
 }): Promise<TPaper> {
   checkPerm(input.principal, 'student_research:edit_own', 'student_profile:edit_own')
   const data = researchPaperInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -352,6 +358,11 @@ export async function addOwnStudentPatent<TPatent>(input: {
 }): Promise<TPatent> {
   checkPerm(input.principal, 'student_patent:edit_own', 'student_profile:edit_own')
   const data = patentInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.createByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -367,6 +378,11 @@ export async function updateOwnStudentPatent<TPatent>(input: {
 }): Promise<TPatent> {
   checkPerm(input.principal, 'student_patent:edit_own', 'student_profile:edit_own')
   const data = patentInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.fileUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -395,7 +411,10 @@ const projectInput = z.object({
   repositoryUrl: z.string().trim().max(2000).nullable().optional(),
   startDate: z.coerce.date().nullable().optional(),
   endDate: z.coerce.date().nullable().optional(),
-})
+}).refine(
+  (v) => !v.startDate || !v.endDate || v.endDate >= v.startDate,
+  { message: 'End date cannot be earlier than start date.', path: ['endDate'] },
+)
 
 export type StudentProjectInput = z.infer<typeof projectInput>
 
@@ -469,7 +488,10 @@ const internshipInput = z.object({
   endDate: z.coerce.date().nullable().optional(),
   stipendAmount: z.string().trim().max(50).nullable().optional(),
   offerType: z.enum(['NONE', 'PPO_OFFERED', 'CONVERTED_TO_JOB']).default('NONE'),
-})
+}).refine(
+  (v) => !v.startDate || !v.endDate || v.endDate >= v.startDate,
+  { message: 'End date cannot be earlier than start date.', path: ['endDate'] },
+)
 
 export type StudentInternshipInput = z.infer<typeof internshipInput>
 

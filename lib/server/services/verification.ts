@@ -1,6 +1,6 @@
 import 'server-only'
 import { prisma } from '@/lib/server/db'
-import { requirePermission, type AuthenticatedPrincipal } from '../authorization'
+import { AuthorizationError, requirePermission, type AuthenticatedPrincipal } from '../authorization'
 import { z } from 'zod'
 
 export interface PendingVerificationItem {
@@ -212,7 +212,92 @@ const statusInput = z.object({
   ]),
   itemId: z.string().min(1),
   status: z.enum(['VERIFIED', 'REJECTED']),
+  rejectionReason: z.string().trim().max(500).nullable().optional(),
 })
+
+/**
+ * Pure validation for verification transitions (exported for automated tests).
+ */
+export function validateVerificationTransition(input: {
+  principalUserId: string
+  ownerUserId: string
+  status: 'VERIFIED' | 'REJECTED'
+  rejectionReason?: string | null
+}): string | null {
+  if (input.principalUserId === input.ownerUserId) {
+    throw new AuthorizationError('Self-verification is not permitted.')
+  }
+  const trimmedReason = input.rejectionReason?.trim() ?? ''
+  if (input.status === 'REJECTED' && !trimmedReason) {
+    throw new Error('Please provide a rejection reason so the submitter knows what to fix.')
+  }
+  return input.status === 'REJECTED' ? trimmedReason : null
+}
+
+async function resolveOwnerUserId(
+  institutionId: string,
+  itemType: z.infer<typeof statusInput>['itemType'],
+  itemId: string,
+): Promise<string | null> {
+  switch (itemType) {
+    case 'ACHIEVEMENT': {
+      const r = await prisma.achievement.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { studentProfile: { select: { userId: true } } },
+      })
+      return r?.studentProfile.userId ?? null
+    }
+    case 'CERTIFICATION': {
+      const r = await prisma.studentCertification.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { studentProfile: { select: { userId: true } } },
+      })
+      return r?.studentProfile.userId ?? null
+    }
+    case 'RESEARCH_PAPER': {
+      const r = await prisma.studentResearchPaper.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { studentProfile: { select: { userId: true } } },
+      })
+      return r?.studentProfile.userId ?? null
+    }
+    case 'PATENT': {
+      const r = await prisma.studentPatent.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { studentProfile: { select: { userId: true } } },
+      })
+      return r?.studentProfile.userId ?? null
+    }
+    case 'INTERNSHIP': {
+      const r = await prisma.studentInternship.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { studentProfile: { select: { userId: true } } },
+      })
+      return r?.studentProfile.userId ?? null
+    }
+    case 'FACULTY_CERTIFICATION': {
+      const r = await prisma.facultyCertification.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { facultyProfile: { select: { userId: true } } },
+      })
+      return r?.facultyProfile.userId ?? null
+    }
+    case 'FACULTY_RESEARCH_PAPER': {
+      const r = await prisma.facultyResearchPaper.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { facultyProfile: { select: { userId: true } } },
+      })
+      return r?.facultyProfile.userId ?? null
+    }
+    case 'FACULTY_PATENT': {
+      const r = await prisma.facultyPatent.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { facultyProfile: { select: { userId: true } } },
+      })
+      return r?.facultyProfile.userId ?? null
+    }
+  }
+}
 
 export async function setVerificationStatus(input: {
   principal: AuthenticatedPrincipal
@@ -220,56 +305,52 @@ export async function setVerificationStatus(input: {
 }): Promise<void> {
   requirePermission(input.principal, 'record:verify')
   const { institutionId } = input.principal
-  const { itemType, itemId, status } = statusInput.parse(input.data)
+  const { itemType, itemId, status, rejectionReason } = statusInput.parse(input.data)
+
+  const ownerUserId = await resolveOwnerUserId(institutionId, itemType, itemId)
+  if (!ownerUserId) {
+    throw new Error('Verification record not found in this institution.')
+  }
+
+  const normalizedReason = validateVerificationTransition({
+    principalUserId: input.principal.userId,
+    ownerUserId,
+    status,
+    rejectionReason,
+  })
+
+  const updateData = {
+    verificationStatus: status,
+    verifiedByUserId: input.principal.userId,
+    verifiedAt: new Date(),
+    rejectionReason: normalizedReason,
+    version: { increment: 1 },
+  }
 
   switch (itemType) {
     case 'ACHIEVEMENT':
-      await prisma.achievement.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.achievement.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'CERTIFICATION':
-      await prisma.studentCertification.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.studentCertification.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'RESEARCH_PAPER':
-      await prisma.studentResearchPaper.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.studentResearchPaper.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'PATENT':
-      await prisma.studentPatent.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.studentPatent.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'INTERNSHIP':
-      await prisma.studentInternship.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.studentInternship.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'FACULTY_CERTIFICATION':
-      await prisma.facultyCertification.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.facultyCertification.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'FACULTY_RESEARCH_PAPER':
-      await prisma.facultyResearchPaper.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.facultyResearchPaper.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'FACULTY_PATENT':
-      await prisma.facultyPatent.update({
-        where: { institutionId_id: { institutionId, id: itemId } },
-        data: { verificationStatus: status },
-      })
+      await prisma.facultyPatent.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
   }
 }

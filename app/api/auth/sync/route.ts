@@ -10,10 +10,16 @@ const portalByRole: Record<string, string> = {
   INSTITUTION_ADMIN: '/admin',
 }
 
+function clearSessionCookies(response: NextResponse) {
+  response.cookies.set('next-auth.session-token', '', { path: '/', maxAge: 0 })
+  response.cookies.set('__Secure-next-auth.session-token', '', { path: '/', maxAge: 0 })
+  return response
+}
+
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id || !session.user.institutionId) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return clearSessionCookies(NextResponse.redirect(new URL('/login', request.url)))
   }
 
   const dbUser = await prisma.user.findUnique({
@@ -23,49 +29,67 @@ export async function GET(request: Request) {
         id: session.user.id,
       },
     },
-    select: { mustChangePassword: true },
+    select: {
+      id: true,
+      institutionId: true,
+      roleId: true,
+      isActive: true,
+      mustChangePassword: true,
+      role: {
+        select: {
+          key: true,
+          rolePermissions: {
+            select: { permission: { select: { key: true } } },
+          },
+        },
+      },
+    },
   })
 
-  const targetPortal = portalByRole[session.user.roleKey] ?? '/'
+  if (!dbUser || !dbUser.isActive) {
+    return clearSessionCookies(NextResponse.redirect(new URL('/login', request.url)))
+  }
 
-  // If user does not need to change password, issue updated cookie with mustChangePassword = false
-  if (!dbUser?.mustChangePassword) {
-    const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET
-    if (secret) {
-      const isProduction = process.env.NODE_ENV === 'production'
-      const cookieName = isProduction ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
+  const freshPermissions = dbUser.role.rolePermissions.map(({ permission }) => permission.key)
+  const targetUrl = dbUser.mustChangePassword
+    ? '/change-password'
+    : (portalByRole[dbUser.role.key] ?? '/')
 
-      const updatedJwt = await encode({
-        token: {
-          sub: session.user.id,
-          institutionId: session.user.institutionId,
-          roleId: session.user.roleId,
-          roleKey: session.user.roleKey,
-          permissions: Array.isArray(session.user.permissions) ? [...session.user.permissions] : [],
-          mustChangePassword: false,
-        },
-        secret,
-      })
+  const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET
+  const response = NextResponse.redirect(new URL(targetUrl, request.url))
 
-      const response = NextResponse.redirect(new URL(targetPortal, request.url))
-      response.cookies.set(cookieName, updatedJwt, {
+  if (secret) {
+    const isProduction = process.env.NODE_ENV === 'production'
+    const cookieName = isProduction ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
+
+    const updatedJwt = await encode({
+      token: {
+        sub: dbUser.id,
+        institutionId: dbUser.institutionId,
+        roleId: dbUser.roleId,
+        roleKey: dbUser.role.key,
+        permissions: freshPermissions,
+        mustChangePassword: dbUser.mustChangePassword,
+      },
+      secret,
+    })
+
+    response.cookies.set(cookieName, updatedJwt, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      secure: isProduction,
+      maxAge: 60 * 60,
+    })
+    if (!isProduction) {
+      response.cookies.set('next-auth.session-token', updatedJwt, {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: isProduction,
         maxAge: 60 * 60,
       })
-      if (!isProduction) {
-        response.cookies.set('next-auth.session-token', updatedJwt, {
-          httpOnly: true,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60,
-        })
-      }
-      return response
     }
   }
 
-  return NextResponse.redirect(new URL('/change-password', request.url))
+  return response
 }

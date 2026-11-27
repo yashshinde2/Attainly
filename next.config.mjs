@@ -4,15 +4,16 @@ const withPWA = withPWAInit({
   dest: 'public',
   disable: process.env.NODE_ENV !== 'production',
   fallbacks: { document: '/offline.html' },
+  // Never cache authenticated institutional portals or API responses offline
   runtimeCaching: [
     {
-      urlPattern: ({ request, url }) => request.mode === 'navigate' && url.pathname.startsWith('/admin'),
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'attainly-admin-pages',
-        networkTimeoutSeconds: 3,
-        expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 },
-      },
+      urlPattern: ({ url }) =>
+        url.pathname.startsWith('/admin') ||
+        url.pathname.startsWith('/student') ||
+        url.pathname.startsWith('/faculty') ||
+        url.pathname.startsWith('/api') ||
+        url.pathname.startsWith('/change-password'),
+      handler: 'NetworkOnly',
     },
   ],
 })

@@ -79,14 +79,17 @@ function buildDateRangeWhere(dateRange?: DateRangeFilter | null) {
   const filter: { gte?: Date; lte?: Date } = {}
   if (dateRange.from) {
     const d = new Date(dateRange.from)
-    if (!Number.isNaN(d.getTime())) filter.gte = d
+    if (Number.isNaN(d.getTime())) throw new Error('Invalid start date.')
+    filter.gte = d
   }
   if (dateRange.to) {
     const d = new Date(dateRange.to)
-    if (!Number.isNaN(d.getTime())) {
-      d.setHours(23, 59, 59, 999)
-      filter.lte = d
-    }
+    if (Number.isNaN(d.getTime())) throw new Error('Invalid end date.')
+    d.setHours(23, 59, 59, 999)
+    filter.lte = d
+  }
+  if (filter.gte && filter.lte && filter.gte > filter.lte) {
+    throw new Error('Start date cannot be after end date.')
   }
   return Object.keys(filter).length > 0 ? filter : undefined
 }

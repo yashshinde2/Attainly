@@ -56,6 +56,13 @@ enum EventParticipationRole {
   ORGANIZER
 }
 
+enum FacultyEmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  VISITING
+  INACTIVE
+}
+
 model Institution {
   id          String       @id @default(cuid())
   name        String
@@ -87,6 +94,7 @@ model Institution {
   facultyPatents FacultyPatent[]
   eventParticipations EventParticipation[]
   savedReports SavedReport[]
+  documents Document[]
 }
 
 model Department {
@@ -100,6 +108,7 @@ model Department {
   courses       Course[]
   events        Event[]
   students      StudentProfile[]
+  faculties     FacultyProfile[]
 
   @@id([institutionId, id])
   @@unique([institutionId, code])
@@ -142,6 +151,7 @@ model User {
   faculty       FacultyProfile?
   eventEntries  EventParticipation[]
   savedReports  SavedReport[]
+  documents     Document[]
 
   @@id([institutionId, id])
   @@unique([institutionId, email])
@@ -221,7 +231,7 @@ model StudentProfile {
 
   @@id([institutionId, id])
   @@unique([institutionId, userId])
-  @@index([institutionId, enrollmentNumber])
+  @@unique([institutionId, enrollmentNumber])
   @@index([institutionId, createdAt])
 }
 
@@ -252,6 +262,10 @@ model Achievement {
   category           AchievementCategory
   status             AchievementStatus
   verificationStatus VerificationStatus  @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                 @default(1)
   description        String?
   awardedAt          DateTime?
   createdAt          DateTime            @default(now())
@@ -271,6 +285,10 @@ model StudentCertification {
   fileUrl            String?
   issuedAt           DateTime?
   verificationStatus VerificationStatus @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                @default(1)
   createdAt          DateTime           @default(now())
   institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   studentProfile     StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
@@ -289,6 +307,10 @@ model StudentResearchPaper {
   fileUrl            String?
   publishedAt        DateTime?
   verificationStatus VerificationStatus @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                @default(1)
   createdAt          DateTime           @default(now())
   institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   studentProfile     StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
@@ -307,6 +329,10 @@ model StudentPatent {
   fileUrl            String?
   filedAt            DateTime?
   verificationStatus VerificationStatus @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                @default(1)
   createdAt          DateTime           @default(now())
   institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   studentProfile     StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
@@ -344,6 +370,10 @@ model StudentInternship {
   stipendAmount      String?
   offerType          InternshipOfferType @default(NONE)
   verificationStatus VerificationStatus  @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                 @default(1)
   createdAt          DateTime            @default(now())
   institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   studentProfile     StudentProfile @relation(fields: [institutionId, studentProfileId], references: [institutionId, id], onDelete: Cascade)
@@ -398,18 +428,23 @@ model CriterionTag {
 }
 
 model FacultyProfile {
-  id                     String                 @default(cuid())
-  institutionId          String                 @map("institution_id")
+  id                     String                  @default(cuid())
+  institutionId          String                  @map("institution_id")
   userId                 String
+  employeeId             String?
+  departmentId           String?
+  designation            String?
+  employmentStatus       FacultyEmploymentStatus @default(ACTIVE)
   phone                  String?
   office                 String?
   photoUrl               String?
   linkedinUrl            String?
   researchGateOrOrcidUrl String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
-  institution            Institution            @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  user                   User                   @relation(fields: [institutionId, userId], references: [institutionId, id], onDelete: Cascade)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  institution            Institution             @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user                   User                    @relation(fields: [institutionId, userId], references: [institutionId, id], onDelete: Cascade)
+  department             Department?             @relation(fields: [institutionId, departmentId], references: [institutionId, id], onDelete: SetNull)
   education              FacultyEducation[]
   experiences            FacultyExperience[]
   certifications         FacultyCertification[]
@@ -418,6 +453,7 @@ model FacultyProfile {
 
   @@id([institutionId, id])
   @@unique([institutionId, userId])
+  @@unique([institutionId, employeeId])
 }
 
 model FacultyEducation {
@@ -463,6 +499,10 @@ model FacultyCertification {
   fileUrl            String?
   issuedAt           DateTime?
   verificationStatus VerificationStatus @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                @default(1)
   createdAt          DateTime           @default(now())
   institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   facultyProfile     FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
@@ -481,6 +521,10 @@ model FacultyResearchPaper {
   fileUrl            String?
   publishedAt        DateTime?
   verificationStatus VerificationStatus @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                @default(1)
   createdAt          DateTime           @default(now())
   institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   facultyProfile     FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
@@ -499,6 +543,10 @@ model FacultyPatent {
   fileUrl            String?
   filedAt            DateTime?
   verificationStatus VerificationStatus @default(PENDING)
+  verifiedByUserId   String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  version            Int                @default(1)
   createdAt          DateTime           @default(now())
   institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   facultyProfile     FacultyProfile @relation(fields: [institutionId, facultyProfileId], references: [institutionId, id], onDelete: Cascade)
@@ -557,4 +605,25 @@ model SavedReport {
 
   @@id([institutionId, id])
   @@index([institutionId, createdAt])
+}
+
+model Document {
+  id               String      @default(cuid())
+  institutionId    String      @map("institution_id")
+  ownerUserId      String
+  pathname         String
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  sha256           String?
+  entityType       String?
+  entityId         String?
+  createdAt        DateTime    @default(now())
+  institution      Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  owner            User        @relation(fields: [institutionId, ownerUserId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, pathname])
+  @@index([institutionId, ownerUserId])
+  @@index([institutionId, entityType, entityId])
 }

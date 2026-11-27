@@ -219,98 +219,50 @@ function PhotoUploadField({ defaultValue = '' }: { defaultValue?: string }) {
 
 function ProfileForm({
   profile,
-  departments,
-  courses,
 }: {
   profile: StudentProfileWithRelations
   departments: Department[]
   courses: Course[]
 }) {
   const [state, action, pending] = useActionState(saveStudentProfile, initialState)
-  const [selectedDept, setSelectedDept] = useState(profile?.departmentId ?? '')
-
-  const filteredCourses = selectedDept
-    ? courses.filter((c) => c.departmentId === selectedDept)
-    : courses
 
   return (
     <form action={action} className="flex flex-col gap-6">
       {/* Profile Photo */}
       <PhotoUploadField defaultValue={profile?.photoUrl ?? ''} />
 
-      {/* Institutional Identity Fields */}
-      <div className="rounded-xl border border-border bg-card/60 p-4">
-        <h3 className="mb-3 font-semibold text-foreground">Institutional Identity</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="enrollmentNumber" className={labelClass}>Enrollment / Roll Number</label>
-            <input
-              id="enrollmentNumber"
-              name="enrollmentNumber"
-              defaultValue={profile?.enrollmentNumber ?? ''}
-              maxLength={60}
-              className={fieldClass}
-              placeholder="e.g. EN2026-CSE-0042"
-            />
-          </div>
-          <div>
-            <label htmlFor="currentSemester" className={labelClass}>Current Semester (1-8)</label>
-            <select
-              id="currentSemester"
-              name="currentSemester"
-              defaultValue={profile?.currentSemester ?? ''}
-              className={fieldClass}
-            >
-              <option value="">Select current semester</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                <option key={sem} value={sem}>Semester {sem}</option>
-              ))}
-            </select>
-          </div>
+      {/* Institutional Identity Fields (Read-Only, Managed by Institution Administration) */}
+      <div className="rounded-xl border border-border bg-muted/30 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold text-foreground">Institutional Identity</h3>
+          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            Managed by Institution Administration
+          </span>
         </div>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-5">
           <div>
-            <label htmlFor="departmentId" className={labelClass}>Department</label>
-            <select
-              id="departmentId"
-              name="departmentId"
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className={fieldClass}
-            >
-              <option value="">Select department</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
-              ))}
-            </select>
+            <p className="text-muted-foreground">Enrollment / Roll #</p>
+            <p className="mt-1 font-semibold text-foreground">{profile?.enrollmentNumber ?? 'Not assigned'}</p>
           </div>
           <div>
-            <label htmlFor="courseId" className={labelClass}>Course / Degree</label>
-            <select
-              id="courseId"
-              name="courseId"
-              defaultValue={profile?.courseId ?? ''}
-              className={fieldClass}
-            >
-              <option value="">Select course</option>
-              {filteredCourses.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <p className="text-muted-foreground">Department</p>
+            <p className="mt-1 font-semibold text-foreground">
+              {profile?.department ? `${profile.department.name} (${profile.department.code})` : 'Not assigned'}
+            </p>
           </div>
           <div>
-            <label htmlFor="admissionYear" className={labelClass}>Admission Year</label>
-            <input
-              id="admissionYear"
-              name="admissionYear"
-              type="number"
-              min={1990}
-              max={2100}
-              defaultValue={profile?.admissionYear ?? ''}
-              className={fieldClass}
-              placeholder="e.g. 2023"
-            />
+            <p className="text-muted-foreground">Course / Degree</p>
+            <p className="mt-1 font-semibold text-foreground">{profile?.course?.name ?? 'Not assigned'}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Admission Year</p>
+            <p className="mt-1 font-semibold text-foreground">{profile?.admissionYear ?? 'Not assigned'}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Current Semester</p>
+            <p className="mt-1 font-semibold text-foreground">
+              {profile?.currentSemester ? `Semester ${profile.currentSemester}` : 'Not assigned'}
+            </p>
           </div>
         </div>
       </div>

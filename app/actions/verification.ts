@@ -17,10 +17,12 @@ export async function setVerificationStatusAction(
     const itemType = formData.get('itemType') as string
     const itemId = formData.get('itemId') as string
     const status = formData.get('status') as string
+    const rejectionReasonRaw = formData.get('rejectionReason')
+    const rejectionReason = typeof rejectionReasonRaw === 'string' ? rejectionReasonRaw : null
 
     await runAuthorized('record:verify', (principal) => setVerificationStatus({
       principal,
-      data: { itemType, itemId, status },
+      data: { itemType, itemId, status, rejectionReason },
     }))
 
     revalidatePath('/admin')
