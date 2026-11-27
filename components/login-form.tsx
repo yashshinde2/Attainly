@@ -40,7 +40,10 @@ export function LoginForm() {
         return
       }
 
-      router.push(result.url ?? targetUrl)
+      // Use relative same-origin path so login works on localhost, 127.0.0.1, LAN IPs, and custom ports
+      // even when NEXTAUTH_URL is unset or differs from the browser origin.
+      const safeTarget = targetUrl.startsWith('/') ? targetUrl : '/student'
+      window.location.assign(safeTarget)
     } catch {
       setError('Sign-in is temporarily unavailable. Please try again.')
       setPending(false)
@@ -99,9 +102,14 @@ export function LoginForm() {
       </form>
 
       <div className="border-t border-border pt-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          1-Click Demo Accounts
-        </p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            1-Click Demo Accounts
+          </p>
+          <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+            Password: <strong className="text-foreground">AttainlyDemo!2026</strong>
+          </span>
+        </div>
         <div className="flex flex-col gap-2">
           <button
             type="button"
