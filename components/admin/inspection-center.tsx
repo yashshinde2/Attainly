@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import {
   createDataCollectionRequestsAction,
   createInspectionCollectionAction,
@@ -10,12 +10,31 @@ import {
   type InspectionActionState,
 } from '@/app/actions/inspections'
 import { REPORT_PRESETS_LIST } from '@/lib/reporting-registry'
-import { Bell, CheckCircle2, ExternalLink, FileArchive, Plus, Send, Trash2 } from 'lucide-react'
+import { Bell, CheckCircle2, Download, ExternalLink, FileArchive, Loader2, Plus, Send, Trash2, XCircle } from 'lucide-react'
 
 const initialState: InspectionActionState = { status: 'idle', message: '' }
 
+export interface ExportJobSummary {
+  id: string
+  collectionId: string | null
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string
+  totalItems: number
+  processedItems: number
+  includedFiles: number
+  missingFiles: number
+  failedFiles: number
+  outputSizeBytes: number | null
+  outputFilename: string | null
+  errorMessage: string | null
+  expiresAt: Date | string | null
+  createdAt: Date | string
+  completedAt: Date | string | null
+  collection?: { title: string; framework: string } | null
+}
+
 export function InspectionCenterClient({
   collections,
+  initialExportJobs = [],
   dataRequests,
   departments,
   academicYears,
@@ -34,6 +53,7 @@ export function InspectionCenterClient({
     lastExportedAt: Date | string | null
     createdAt: Date | string
   }>
+  initialExportJobs?: ExportJobSummary[]
   dataRequests: Array<{
     id: string
     title: string
@@ -58,11 +78,65 @@ export function InspectionCenterClient({
   documents: Array<{ id: string; originalFilename: string; ownerName: string }>
 }) {
   const [tab, setTab] = useState<'collections' | 'requests'>('collections')
+  const [exportJobs, setExportJobs] = useState<ExportJobSummary[]>(initialExportJobs)
+  const [exportNotice, setExportNotice] = useState<string | null>(null)
+  const [enqueueingId, setEnqueueingId] = useState<string | null>(null)
   const [colState, colAction, colPending] = useActionState(createInspectionCollectionAction, initialState)
   const [delState, delAction, delPending] = useActionState(deleteInspectionCollectionAction, initialState)
   const [reqState, reqAction, reqPending] = useActionState(createDataCollectionRequestsAction, initialState)
   const [remState, remAction, remPending] = useActionState(sendDataRequestReminderAction, initialState)
   const [revState, revAction, revPending] = useActionState(reviewDataRequestAction, initialState)
+
+  const hasActiveJobs = exportJobs.some((j) => j.status === 'QUEUED' || j.status === 'PROCESSING')
+
+  useEffect(() => {
+    if (!hasActiveJobs) return
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/exports', { cache: 'no-store' })
+        if (res.ok) {
+          const data = (await res.json()) as { jobs?: ExportJobSummary[] }
+          if (data.jobs) setExportJobs(data.jobs)
+        }
+      } catch {
+        // Ignore transient poll errors
+      }
+    }, 2500)
+    return () => clearInterval(timer)
+  }, [hasActiveJobs])
+
+  async function queueBackgroundExport(collectionId: string) {
+    setEnqueueingId(collectionId)
+    setExportNotice(null)
+    try {
+      const res = await fetch('/api/exports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collectionId }),
+      })
+      const data = (await res.json()) as { job?: ExportJobSummary; error?: string }
+      if (!res.ok || !data.job) {
+        setExportNotice(data.error ?? 'Failed to queue background export.')
+        return
+      }
+      setExportJobs((prev) => [data.job!, ...prev])
+      setExportNotice(`Queued export job ${data.job.id.slice(-8)}. You can keep using Attainly while it builds.`)
+      // Trigger dedicated worker endpoint in background
+      fetch(`/api/exports/worker?jobId=${encodeURIComponent(data.job.id)}`, { method: 'POST' }).catch(() => {})
+    } finally {
+      setEnqueueingId(null)
+    }
+  }
+
+  async function cancelJob(jobId: string) {
+    const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' })
+    if (res.ok) {
+      const data = (await res.json()) as { job?: ExportJobSummary }
+      if (data.job) {
+        setExportJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...data.job } : j)))
+      }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -200,13 +274,21 @@ export function InspectionCenterClient({
                         {c.lastExportedAt ? ` • Last exported ${new Date(c.lastExportedAt).toLocaleDateString()}` : ''}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => queueBackgroundExport(c.id)}
+                        disabled={enqueueingId === c.id}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                      >
+                        {enqueueingId === c.id ? <Loader2 size={13} className="animate-spin" /> : <FileArchive size={13} />}
+                        Queue Background Export
+                      </button>
                       <a
                         href={`/api/inspections/${c.id}/export`}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted"
                       >
-                        <FileArchive size={13} />
-                        Download ZIP Package
+                        Quick ZIP
                       </a>
                       <form action={delAction}>
                         <input type="hidden" name="collectionId" value={c.id} />
@@ -217,6 +299,86 @@ export function InspectionCenterClient({
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">Export Jobs &amp; Download History</h2>
+              {hasActiveJobs && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                  <Loader2 size={12} className="animate-spin" />
+                  Processing in background…
+                </span>
+              )}
+            </div>
+            {exportNotice && <p className="text-xs text-primary">{exportNotice}</p>}
+            {exportJobs.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No background export jobs queued yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {exportJobs.map((job) => {
+                  const pct = job.totalItems > 0 ? Math.min(100, Math.round((job.processedItems / job.totalItems) * 100)) : 0
+                  const isExpired = job.expiresAt ? new Date(job.expiresAt).getTime() < Date.now() : false
+                  return (
+                    <div key={job.id} className="rounded-xl border border-border bg-background p-3.5 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-bold text-foreground">
+                            {job.status}
+                          </span>
+                          <span className="text-sm font-semibold text-foreground">
+                            {job.collection?.title ?? job.outputFilename ?? `Export ${job.id.slice(-8)}`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {(job.status === 'QUEUED' || job.status === 'PROCESSING') && (
+                            <button
+                              type="button"
+                              onClick={() => cancelJob(job.id)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-destructive hover:bg-muted"
+                            >
+                              <XCircle size={12} />
+                              Cancel
+                            </button>
+                          )}
+                          {job.status === 'COMPLETED' && !isExpired && (
+                            <a
+                              href={`/api/exports/${job.id}/download`}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                            >
+                              <Download size={12} />
+                              Download ZIP ({job.outputSizeBytes ? `${(job.outputSizeBytes / 1024).toFixed(1)} KB` : 'ready'})
+                            </a>
+                          )}
+                          {job.status === 'COMPLETED' && isExpired && (
+                            <span className="text-xs font-medium text-muted-foreground">Expired</span>
+                          )}
+                        </div>
+                      </div>
+                      {(job.status === 'QUEUED' || job.status === 'PROCESSING') && (
+                        <div className="space-y-1">
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            {job.processedItems} / {job.totalItems} items ({pct}%)
+                          </p>
+                        </div>
+                      )}
+                      {job.status === 'COMPLETED' && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Included: {job.includedFiles} &middot; Missing: {job.missingFiles} &middot; Failed: {job.failedFiles}
+                          {job.expiresAt ? ` • Expires ${new Date(job.expiresAt).toLocaleString()}` : ''}
+                        </p>
+                      )}
+                      {job.status === 'FAILED' && job.errorMessage && (
+                        <p className="text-xs text-destructive">Error: {job.errorMessage}</p>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </section>

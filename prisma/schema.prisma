@@ -136,6 +136,7 @@ model Institution {
   reportSnapshots        ReportSnapshot[]
   inspectionCollections  InspectionCollection[]
   dataCollectionRequests DataCollectionRequest[]
+  exportJobs             ExportJob[]
 }
 
 model Department {
@@ -779,9 +780,51 @@ model InspectionCollection {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   institution       Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  exportJobs        ExportJob[]
 
   @@id([institutionId, id])
   @@index([institutionId, framework, createdAt])
+}
+
+enum ExportJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model ExportJob {
+  id                String          @default(cuid())
+  institutionId     String          @map("institution_id")
+  requestedByUserId String
+  jobType           String          @default("INSPECTION_PACKAGE")
+  collectionId      String?
+  snapshotId        String?
+  specificationJson Json
+  status            ExportJobStatus @default(QUEUED)
+  totalItems        Int             @default(0)
+  processedItems    Int             @default(0)
+  includedFiles     Int             @default(0)
+  missingFiles      Int             @default(0)
+  failedFiles       Int             @default(0)
+  outputSizeBytes   Int?
+  errorMessage      String?
+  storageKey        String?
+  outputFilename    String?
+  outputSha256      String?
+  expiresAt         DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  institution       Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  collection        InspectionCollection? @relation(fields: [institutionId, collectionId], references: [institutionId, id], onDelete: SetNull)
+
+  @@id([institutionId, id])
+  @@index([institutionId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model DataCollectionRequest {

@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:seed": "prisma generate && prisma db seed",
+    "worker:export": "tsx scripts/export-worker.ts",
     "test": "tsx --import ./tests/server-only-stub.mjs --test tests/*.test.ts"
   },
   "dependencies": {
