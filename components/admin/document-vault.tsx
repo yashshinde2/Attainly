@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, ExternalLink, FileText, FolderOpen, Loader2, Search } from 'lucide-react'
+import { Download, ExternalLink, Eye, FileText, FolderOpen, LayoutGrid, LayoutList, Loader2, Search } from 'lucide-react'
+import { DocumentPreviewDrawer } from '@/components/shared/attainly-ui'
 import { escapeCsvCell } from '@/lib/csv'
 
 interface VaultItem {
@@ -37,6 +38,8 @@ export function DocumentVaultClient({
   const [departmentId, setDepartmentId] = useState(initialFilters.departmentId)
   const [ownerRole, setOwnerRole] = useState(initialFilters.ownerRole)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [previewDoc, setPreviewDoc] = useState<VaultItem | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const applyFilters = (page = 1, nextSearch = search) => {
@@ -211,15 +214,24 @@ export function DocumentVaultClient({
                       <td className="py-3 pr-4 font-mono">v{doc.version}</td>
                       <td className="py-3 pr-4">{Math.max(1, Math.round(doc.sizeBytes / 1024))} KB</td>
                       <td className="py-3 text-right">
-                        <a
-                          href={`/api/documents?id=${doc.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1 text-[11px] font-medium hover:bg-muted"
-                        >
-                          <ExternalLink size={12} />
-                          Open
-                        </a>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDoc(doc)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                          >
+                            <Eye size={12} /> Preview
+                          </button>
+                          <a
+                            href={`/api/documents?id=${doc.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Open ${doc.originalFilename} in new tab`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted"
+                          >
+                            <ExternalLink size={12} />
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -227,10 +239,30 @@ export function DocumentVaultClient({
               </table>
             </div>
 
-            <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
-              <span>
-                Page {vault.page} of {totalPages} ({vault.total} documents)
-              </span>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span>
+                  Page {vault.page} of {totalPages} ({vault.total} documents)
+                </span>
+                <div className="inline-flex rounded-lg border border-border p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    aria-label="List view"
+                    className={`rounded-md p-1 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                  >
+                    <LayoutList size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    aria-label="Grid view"
+                    className={`rounded-md p-1 ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                  >
+                    <LayoutGrid size={12} />
+                  </button>
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -250,9 +282,42 @@ export function DocumentVaultClient({
                 </button>
               </div>
             </div>
+
+            {viewMode === 'grid' && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {vault.items.map((doc) => (
+                  <div key={`grid-${doc.id}`} className="rounded-xl border border-border bg-background p-3.5 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="truncate text-xs font-semibold text-foreground">{doc.originalFilename}</span>
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold">v{doc.version}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {doc.ownerName} &bull; {doc.departmentCode} &bull; {Math.max(1, Math.round(doc.sizeBytes / 1024))} KB
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDoc(doc)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary"
+                      >
+                        <Eye size={12} /> Preview
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </section>
+
+      <DocumentPreviewDrawer
+        open={Boolean(previewDoc)}
+        title={previewDoc?.originalFilename ?? 'Document Preview'}
+        documentUrl={previewDoc ? `/api/documents?id=${previewDoc.id}&disposition=inline` : null}
+        mimeType={previewDoc?.mimeType}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   )
 }

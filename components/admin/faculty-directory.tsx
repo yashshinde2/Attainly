@@ -87,7 +87,7 @@ export function AdminFacultyDirectoryClient({
             Has contributions
           </label>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="submit" className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
               Apply Filters
             </button>
             <Link href="/admin/faculty" className="rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-muted">

@@ -96,7 +96,7 @@ export function AdminStudentDirectoryClient({
             <option value="above80">Above 80%</option>
           </select>
           <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center gap-2">
-            <button type="submit" className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
               Apply Filters
             </button>
             <Link href="/admin/students" className="rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-muted">

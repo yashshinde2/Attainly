@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { useActionState, useState } from 'react'
-import { Clock, Eye, History, UserCheck } from 'lucide-react'
+import { Clock, ExternalLink, Eye, History, UserCheck } from 'lucide-react'
 import {
   assignVerificationReviewerAction,
   setVerificationStatusAction,
   type VerificationActionState,
 } from '@/app/actions/verification'
+import { DocumentPreviewDrawer } from '@/components/shared/attainly-ui'
 import type { VerificationCenterItem } from '@/lib/server/services/verification'
 
 const initialState: VerificationActionState = { status: 'idle', message: '' }
@@ -24,17 +25,29 @@ function VerificationRow({
   const [assignState, assignAction, assignPending] = useActionState(assignVerificationReviewerAction, initialState)
   const [showReject, setShowReject] = useState(false)
   const [reason, setReason] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
+
+  const previewHref = item.fileUrl
+    ? item.fileUrl.startsWith('http')
+      ? item.fileUrl
+      : `/api/documents?pathname=${encodeURIComponent(item.fileUrl)}&disposition=inline`
+    : null
+  const previewMime = item.fileUrl?.toLowerCase().endsWith('.png')
+    ? 'image/png'
+    : item.fileUrl?.toLowerCase().match(/\.(jpg|jpeg)$/)
+      ? 'image/jpeg'
+      : 'application/pdf'
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
               {item.itemType.replace(/_/g, ' ')}
             </span>
             {item.isOverdue && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-pending-bg)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--status-pending)]">
                 <Clock size={11} /> Overdue (&gt;7d)
               </span>
             )}
@@ -48,27 +61,41 @@ function VerificationRow({
           </p>
           {item.details && <p className="mt-1 text-xs text-foreground/80">{item.details}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-4">
-            {item.fileUrl && (
-              <a
-                href={
-                  item.fileUrl.startsWith('http')
-                    ? item.fileUrl
-                    : `/api/documents?pathname=${encodeURIComponent(item.fileUrl)}&disposition=inline`
-                }
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"
-              >
-                <Eye size={13} /> Preview Evidence
-              </a>
+            {previewHref && (
+              <span className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <Eye size={13} /> Preview Evidence
+                </button>
+                <a
+                  href={previewHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Open evidence in new tab"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <ExternalLink size={12} />
+                </a>
+              </span>
             )}
             {item.assignedReviewerName && (
-              <span className="inline-flex items-center gap-1 text-xs text-teal-600 dark:text-teal-400">
+              <span className="inline-flex items-center gap-1 text-xs text-[var(--status-verified)]">
                 <UserCheck size={13} /> Assigned to: {item.assignedReviewerName}
               </span>
             )}
           </div>
         </div>
+
+        <DocumentPreviewDrawer
+          open={previewOpen}
+          title={`${item.title} — Evidence`}
+          documentUrl={previewHref}
+          mimeType={previewMime}
+          onClose={() => setPreviewOpen(false)}
+        />
 
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
@@ -80,7 +107,7 @@ function VerificationRow({
               <button
                 type="submit"
                 disabled={approvePending || rejectPending}
-                className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
               >
                 {approvePending ? 'Saving…' : 'Approve'}
               </button>
@@ -207,7 +234,7 @@ export function AdminVerificationCenterClient({
             <input type="checkbox" name="assignedToMe" value="1" defaultChecked={filters.assignedToMe === '1'} className="accent-indigo-600" />
             Assigned to me
           </label>
-          <button type="submit" className="rounded-xl bg-indigo-600 px-3.5 py-2 font-semibold text-white">Filter</button>
+          <button type="submit" className="rounded-xl bg-primary px-3.5 py-2 font-semibold text-white">Filter</button>
           <Link href="/admin/verifications" className="rounded-xl border border-border px-3 py-2">Reset</Link>
         </form>
 

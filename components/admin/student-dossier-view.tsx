@@ -98,7 +98,7 @@ export function AdminStudentDossierView({
             type="button"
             disabled={downloading}
             onClick={handleDownloadDossier}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
           >
             {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             {downloading ? 'Generating Dossier…' : 'Download Student Dossier (PDF)'}
