@@ -88,6 +88,8 @@ const portalConfig = {
       ['Courses', '/admin/courses', Layers],
       ['Events', '/admin/events', CalendarDays],
       ['Reports', '/admin/reports', BarChart3],
+      ['Document Vault', '/admin/documents', FolderOpen],
+      ['Inspections', '/admin/inspections', FileBadge],
       ['Users & Access', '/admin/people', ShieldCheck],
       ['Settings', '/admin/settings', Settings2],
     ],

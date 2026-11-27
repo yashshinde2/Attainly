@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/server/db'
 import type { Prisma, SavedReport } from '@/generated/prisma/client'
 import { requirePermission, type AuthenticatedPrincipal } from '../authorization'
+import { assertDepartmentAccess, resolveDepartmentScope } from './admin-command'
 import { calculateFacultyCompleteness, calculateStudentCompleteness } from '@/lib/completeness'
 import { DEFAULT_ACCREDITATION_CRITERIA, type CriterionReferenceItem } from './institution'
 import { PrismaSavedReportRepository } from '../repositories/saved-report-repository'
@@ -103,17 +104,30 @@ export async function achievementStatsByCategory(input: {
 }): Promise<AchievementCategoryStatRow[]> {
   requirePermission(input.principal, 'report:view')
   const { institutionId } = input.principal
+  const allowedDepts = await resolveDepartmentScope(input.principal)
+  if (input.departmentId) assertDepartmentAccess(allowedDepts, input.departmentId)
   const includeUnverified = Boolean(input.includeUnverified)
-  const createdAtFilter = buildDateRangeWhere(input.dateRange)
+  const activityDateFilter = buildDateRangeWhere(input.dateRange)
 
   const studentProfileFilter: Prisma.StudentProfileWhereInput = {}
-  if (input.departmentId) studentProfileFilter.departmentId = input.departmentId
+  if (input.departmentId) {
+    studentProfileFilter.departmentId = input.departmentId
+  } else if (allowedDepts) {
+    studentProfileFilter.departmentId = { in: allowedDepts }
+  }
   if (input.batchYear) studentProfileFilter.admissionYear = input.batchYear
 
   const where: Prisma.AchievementWhereInput = {
     institutionId,
     ...(includeUnverified ? {} : { verificationStatus: 'VERIFIED' }),
-    ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
+    ...(activityDateFilter
+      ? {
+          OR: [
+            { awardedAt: activityDateFilter },
+            { awardedAt: null, createdAt: activityDateFilter },
+          ],
+        }
+      : {}),
     ...(Object.keys(studentProfileFilter).length > 0 ? { studentProfile: studentProfileFilter } : {}),
   }
 
