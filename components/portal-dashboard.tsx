@@ -164,7 +164,7 @@ export function PortalDashboard({ portal, content }: { portal: Portal; content?:
                 onClick={() => setMenuOpen(false)}
                 title={collapsed ? label : undefined}
                 aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   active
                     ? 'bg-primary/8 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -180,21 +180,23 @@ export function PortalDashboard({ portal, content }: { portal: Portal; content?:
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="flex w-full items-center gap-3 rounded-xl p-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            title={collapsed ? 'Sign out' : undefined}
+            className="flex w-full items-center gap-3 rounded-xl p-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-destructive">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-destructive">
               <LogOut aria-hidden="true" size={17} />
             </span>
-            Sign out
+            {!collapsed && <span>Sign out</span>}
           </button>
           <Link
             href="/"
-            className="flex items-center gap-3 rounded-xl p-2 text-sm text-muted-foreground hover:bg-muted"
+            title={collapsed ? 'Back to Attainly' : undefined}
+            className="flex items-center gap-3 rounded-xl p-2 text-sm text-muted-foreground transition hover:bg-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <span className="flex size-9 items-center justify-center rounded-lg bg-muted">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
               <Settings2 aria-hidden="true" size={17} />
             </span>
-            Back to Attainly
+            {!collapsed && <span>Back to Attainly</span>}
           </Link>
         </div>
       </aside>

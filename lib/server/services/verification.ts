@@ -37,23 +37,7 @@ export async function listPendingForInstitution(input: {
   requirePermission(input.principal, 'record:verify')
   const { institutionId } = input.principal
 
-  const [
-    achievements,
-    certifications,
-    papers,
-    patents,
-    internships,
-    facultyCertifications,
-    facultyPapers,
-    facultyPatents,
-    facultyFdps,
-    canonicalPubs,
-    facultyGrants,
-    facultyConsultancies,
-    facultyContributions,
-    placementOffers,
-    graduateOutcomes,
-  ] = await Promise.all([
+  const [achievements, certifications, papers, patents, internships] = await Promise.all([
     prisma.achievement.findMany({
       where: { institutionId, verificationStatus: 'PENDING' },
       include: { studentProfile: { include: { user: true } } },
@@ -79,6 +63,9 @@ export async function listPendingForInstitution(input: {
       include: { studentProfile: { include: { user: true } } },
       orderBy: { createdAt: 'desc' },
     }),
+  ])
+
+  const [facultyCertifications, facultyPapers, facultyPatents, facultyFdps, canonicalPubs] = await Promise.all([
     prisma.facultyCertification.findMany({
       where: { institutionId, verificationStatus: 'PENDING' },
       include: { facultyProfile: { include: { user: true } } },
@@ -103,32 +90,36 @@ export async function listPendingForInstitution(input: {
       where: { institutionId, verificationStatus: 'PENDING' },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.facultyResearchGrant.findMany({
-      where: { institutionId, verificationStatus: 'PENDING' },
-      include: { facultyProfile: { include: { user: true } } },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.facultyConsultancy.findMany({
-      where: { institutionId, verificationStatus: 'PENDING' },
-      include: { facultyProfile: { include: { user: true } } },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.facultyContribution.findMany({
-      where: { institutionId, verificationStatus: 'PENDING' },
-      include: { facultyProfile: { include: { user: true } } },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.studentPlacementOffer.findMany({
-      where: { institutionId, verificationStatus: 'PENDING' },
-      include: { studentProfile: { include: { user: true } } },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.studentGraduateOutcome.findMany({
-      where: { institutionId, verificationStatus: 'PENDING' },
-      include: { studentProfile: { include: { user: true } } },
-      orderBy: { createdAt: 'desc' },
-    }),
   ])
+
+  const [facultyGrants, facultyConsultancies, facultyContributions, placementOffers, graduateOutcomes] =
+    await Promise.all([
+      prisma.facultyResearchGrant.findMany({
+        where: { institutionId, verificationStatus: 'PENDING' },
+        include: { facultyProfile: { include: { user: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.facultyConsultancy.findMany({
+        where: { institutionId, verificationStatus: 'PENDING' },
+        include: { facultyProfile: { include: { user: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.facultyContribution.findMany({
+        where: { institutionId, verificationStatus: 'PENDING' },
+        include: { facultyProfile: { include: { user: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.studentPlacementOffer.findMany({
+        where: { institutionId, verificationStatus: 'PENDING' },
+        include: { studentProfile: { include: { user: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.studentGraduateOutcome.findMany({
+        where: { institutionId, verificationStatus: 'PENDING' },
+        include: { studentProfile: { include: { user: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
 
   const items: PendingVerificationItem[] = []
 

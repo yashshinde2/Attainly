@@ -451,7 +451,13 @@ export function EventsCatalog({
 
       {/* Registration Modal */}
       {registerTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Register for ${registerTarget.title}`}
+          onKeyDown={(e) => e.key === 'Escape' && setRegisterTarget(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+        >
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -547,7 +553,13 @@ export function EventsCatalog({
 
       {/* Institution-Branded Participation Certificate Modal */}
       {certificateTarget && certificateTarget.myParticipation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Official Participation Certificate"
+          onKeyDown={(e) => e.key === 'Escape' && setCertificateTarget(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
           <div className="w-full max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between print:hidden">
               <h3 className="text-sm font-semibold text-foreground">Official Participation Certificate</h3>

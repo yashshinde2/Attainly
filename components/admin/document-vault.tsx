@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, ExternalLink, FileText, FolderOpen, Search } from 'lucide-react'
+import { Download, ExternalLink, FileText, FolderOpen, Loader2, Search } from 'lucide-react'
 import { escapeCsvCell } from '@/lib/csv'
 
 interface VaultItem {
@@ -37,15 +37,25 @@ export function DocumentVaultClient({
   const [departmentId, setDepartmentId] = useState(initialFilters.departmentId)
   const [ownerRole, setOwnerRole] = useState(initialFilters.ownerRole)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [isPending, startTransition] = useTransition()
 
-  const applyFilters = (page = 1) => {
+  const applyFilters = (page = 1, nextSearch = search) => {
     const p = new URLSearchParams()
-    if (search.trim()) p.set('search', search.trim())
+    if (nextSearch.trim()) p.set('search', nextSearch.trim())
     if (departmentId) p.set('departmentId', departmentId)
     if (ownerRole) p.set('ownerRole', ownerRole)
     if (page > 1) p.set('page', String(page))
-    router.push(`/admin/documents?${p.toString()}`)
+    startTransition(() => {
+      router.push(`/admin/documents?${p.toString()}`)
+    })
   }
+
+  useEffect(() => {
+    if (search === initialFilters.search) return
+    const timer = setTimeout(() => applyFilters(1, search), 320)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   const exportMetadataCsv = () => {
     const targetItems = selectedIds.length
@@ -128,9 +138,11 @@ export function DocumentVaultClient({
         </select>
         <button
           type="button"
+          disabled={isPending}
           onClick={() => applyFilters(1)}
-          className="rounded-xl bg-secondary px-4 py-2 text-xs font-semibold text-secondary-foreground"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2 text-xs font-semibold text-secondary-foreground disabled:opacity-60"
         >
+          {isPending && <Loader2 size={13} className="animate-spin" />}
           Apply Filters
         </button>
       </div>
