@@ -97,7 +97,7 @@ export function StudentProjectsInternshipsSection({
             <button
               type="submit"
               disabled={projAddPending}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
             >
               <Plus size={14} /> {projAddPending ? 'Saving…' : 'Add Project'}
             </button>
@@ -124,7 +124,7 @@ export function StudentProjectsInternshipsSection({
                   <SingleDocumentUploadField id={`edit-proj-ev-${proj.id}`} name="evidenceUrl" defaultValue={proj.evidenceUrl ?? ''} />
                 </div>
                 <div className="sm:col-span-3 flex items-center gap-2">
-                  <button type="submit" disabled={projEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={projEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Save</button>
                   <button type="button" onClick={() => setEditingProjId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={projEditState} />
                 </div>
@@ -232,7 +232,7 @@ export function StudentProjectsInternshipsSection({
             <button
               type="submit"
               disabled={intAddPending}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
             >
               <Plus size={14} /> {intAddPending ? 'Saving…' : 'Add Internship'}
             </button>
@@ -264,7 +264,7 @@ export function StudentProjectsInternshipsSection({
                   <SingleDocumentUploadField id={`edit-int-ev-${intItem.id}`} name="evidenceUrl" defaultValue={intItem.evidenceUrl ?? ''} />
                 </div>
                 <div className="sm:col-span-3 flex items-center gap-2">
-                  <button type="submit" disabled={intEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={intEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Save</button>
                   <button type="button" onClick={() => setEditingIntId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={intEditState} />
                 </div>

@@ -9,7 +9,7 @@ export function StudentNotificationsSection({
   notifications: StudentNotificationItem[]
 }) {
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <StudentSectionHeader
         title="Notifications & Action Items"
         description="Reviewer feedback, verification updates, and profile completion reminders."

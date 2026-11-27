@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Download, Eye, FileText, FileUp, Search } from 'lucide-react'
 import type { Document } from '@/generated/prisma/client'
+import { DocumentPreviewDrawer } from '@/components/shared/attainly-ui'
 import { StudentSectionHeader } from './shared-ui'
 
 export function StudentDocumentsSection({
@@ -24,11 +25,19 @@ export function StudentDocumentsSection({
 }) {
   const router = useRouter()
   const [query, setQuery] = useState(initialQuery)
+  const [mimeFilter, setMimeFilter] = useState<'ALL' | 'PDF' | 'IMAGE'>('ALL')
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [uploadSuccess, setUploadSuccess] = useState('')
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  const filteredItems = useMemo(() => {
+    if (mimeFilter === 'ALL') return items
+    if (mimeFilter === 'PDF') return items.filter((d) => d.mimeType === 'application/pdf')
+    return items.filter((d) => d.mimeType.startsWith('image/'))
+  }, [items, mimeFilter])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -52,7 +61,7 @@ export function StudentDocumentsSection({
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <StudentSectionHeader
         title="My Document Library"
         description="Centralized vault of all your uploaded certificates, letters, transcripts, and supporting evidence."
@@ -80,7 +89,7 @@ export function StudentDocumentsSection({
         <div>
           <label
             htmlFor="vault-upload"
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
           >
             <FileUp size={14} /> {uploading ? 'Uploading…' : 'Upload Document'}
           </label>
@@ -88,19 +97,36 @@ export function StudentDocumentsSection({
         </div>
       </div>
 
-      {uploadError && <p className="mb-3 text-xs text-destructive">{uploadError}</p>}
-      {uploadSuccess && <p className="mb-3 text-xs font-medium text-teal-600">{uploadSuccess}</p>}
+      {uploadError && <p role="alert" className="mb-3 text-xs text-[var(--status-rejected)]">{uploadError}</p>}
+      {uploadSuccess && <p role="status" className="mb-3 text-xs font-medium text-[var(--status-verified)]">{uploadSuccess}</p>}
 
-      {items.length === 0 ? (
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {(['ALL', 'PDF', 'IMAGE'] as const).map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => setMimeFilter(kind)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+              mimeFilter === kind
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {kind === 'ALL' ? 'All Files' : kind === 'PDF' ? 'PDF Documents' : 'Images'}
+          </button>
+        ))}
+      </div>
+
+      {filteredItems.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           No documents found. Upload a PDF, PNG, or JPEG file above.
         </div>
       ) : (
         <div className="divide-y divide-border">
-          {items.map((doc) => (
+          {filteredItems.map((doc) => (
             <div key={doc.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
               <div className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <FileText size={16} />
                 </span>
                 <div>
@@ -112,14 +138,13 @@ export function StudentDocumentsSection({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <a
-                  href={`/api/documents?pathname=${encodeURIComponent(doc.pathname)}&disposition=inline`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:bg-muted"
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(doc)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted"
                 >
                   <Eye size={13} /> Preview
-                </a>
+                </button>
                 <a
                   href={`/api/documents?pathname=${encodeURIComponent(doc.pathname)}`}
                   className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
@@ -131,6 +156,18 @@ export function StudentDocumentsSection({
           ))}
         </div>
       )}
+
+      <DocumentPreviewDrawer
+        open={Boolean(previewDoc)}
+        title={previewDoc?.originalFilename ?? 'Document Preview'}
+        documentUrl={
+          previewDoc
+            ? `/api/documents?pathname=${encodeURIComponent(previewDoc.pathname)}&disposition=inline`
+            : null
+        }
+        mimeType={previewDoc?.mimeType}
+        onClose={() => setPreviewDoc(null)}
+      />
 
       {totalPages > 1 && (
         <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs">

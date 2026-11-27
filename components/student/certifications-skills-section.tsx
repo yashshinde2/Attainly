@@ -103,7 +103,7 @@ export function StudentCertificationsSkillsSection({
             <button
               type="submit"
               disabled={certAddPending}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
             >
               <Plus size={14} /> {certAddPending ? 'Saving…' : 'Add Certification'}
             </button>
@@ -132,7 +132,7 @@ export function StudentCertificationsSkillsSection({
                     <SingleDocumentUploadField id={`edit-cert-file-${cert.id}`} name="fileUrl" defaultValue={cert.fileUrl ?? ''} />
                   </div>
                   <div className="sm:col-span-3 flex items-center gap-2">
-                    <button type="submit" disabled={certEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">
+                    <button type="submit" disabled={certEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                       {certEditPending ? 'Saving…' : 'Save Changes'}
                     </button>
                     <button type="button" onClick={() => setEditingCertId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">
@@ -225,7 +225,7 @@ export function StudentCertificationsSkillsSection({
           <button
             type="submit"
             disabled={skillAddPending}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
           >
             <Plus size={14} /> {skillAddPending ? 'Adding…' : 'Add Skill'}
           </button>
@@ -248,7 +248,7 @@ export function StudentCertificationsSkillsSection({
                   <option value="EXPERT">Expert</option>
                 </select>
                 <div className="flex gap-2">
-                  <button type="submit" disabled={skillEditPending} className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={skillEditPending} className="rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">Save</button>
                   <button type="button" onClick={() => setEditingSkillId(null)} className="rounded-lg border border-border px-3 py-1 text-xs">Cancel</button>
                 </div>
                 <ActionMessage state={skillEditState} />

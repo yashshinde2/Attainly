@@ -85,7 +85,7 @@ export function StudentCareerSection({
             <SingleDocumentUploadField id="offer-letter" name="offerLetterUrl" label="Offer Letter (PDF / Image)" />
           </div>
           <div className="sm:col-span-3 flex items-center gap-3">
-            <button type="submit" disabled={offerAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={offerAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {offerAddPending ? 'Saving…' : 'Add Placement Offer'}
             </button>
             <ActionMessage state={offerAddState} />
@@ -115,7 +115,7 @@ export function StudentCareerSection({
                     <SingleDocumentUploadField id={`edit-offer-${offer.id}`} name="offerLetterUrl" defaultValue={offer.offerLetterUrl ?? ''} />
                   </div>
                   <div className="sm:col-span-3 flex gap-2">
-                    <button type="submit" disabled={offerEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                    <button type="submit" disabled={offerEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Save</button>
                     <button type="button" onClick={() => setEditingOfferId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                     <ActionMessage state={offerEditState} />
                   </div>
@@ -204,7 +204,7 @@ export function StudentCareerSection({
             <ReviewerFeedbackBanner status={outcome?.verificationStatus} rejectionReason={outcome?.rejectionReason} />
           </div>
           <div className="sm:col-span-2 flex items-center gap-3">
-            <button type="submit" disabled={outPending} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+            <button type="submit" disabled={outPending} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
               {outPending ? 'Saving…' : 'Save Graduate Outcome'}
             </button>
             <ActionMessage state={outState} />

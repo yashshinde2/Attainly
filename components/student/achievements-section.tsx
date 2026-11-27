@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useState } from 'react'
-import { Edit3, Plus } from 'lucide-react'
+import { useActionState, useMemo, useState } from 'react'
+import { Edit3, Plus, Search, X } from 'lucide-react'
 import {
   addStudentAchievement,
   deleteStudentAchievement,
@@ -54,19 +54,47 @@ export function StudentAchievementsSection({
 
   const [selectedCatCode, setSelectedCatCode] = useState(categories[0]?.code ?? 'TECHNICAL')
   const [selectedTeamType, setSelectedTeamType] = useState('INDIVIDUAL')
+  const [showAddForm, setShowAddForm] = useState(items.length === 0)
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'VERIFIED' | 'PENDING' | 'REJECTED'>('ALL')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const activeCategoryConfig = categories.find((c) => c.code === selectedCatCode)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return items.filter((item) => {
+      if (statusFilter !== 'ALL' && item.verificationStatus !== statusFilter) return false
+      if (!q) return true
+      return (
+        item.title.toLowerCase().includes(q) ||
+        (item.organizer ?? '').toLowerCase().includes(q) ||
+        (item.categoryCode ?? item.category).toLowerCase().includes(q)
+      )
+    })
+  }, [items, statusFilter, searchQuery])
+
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <StudentSectionHeader
         title="Achievements & Co-Curricular Claims"
         description="Log technical events, hackathons, sports, cultural, leadership, and social service milestones with supporting evidence."
         badge={`${total} Total`}
+        action={
+          <button
+            type="button"
+            aria-expanded={showAddForm}
+            onClick={() => setShowAddForm((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
+          >
+            {showAddForm ? <X size={14} /> : <Plus size={14} />}
+            {showAddForm ? 'Close Form' : 'Log Achievement'}
+          </button>
+        }
       />
 
       {/* Add Achievement Form */}
+      {showAddForm && (
       <form action={addAction} className="mb-6 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-3">
         <input type="hidden" name="category" value={mapConfigToLegacyCategory(selectedCatCode)} />
 
@@ -181,7 +209,7 @@ export function StudentAchievementsSection({
           <button
             type="submit"
             disabled={addPending}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
           >
             <Plus size={14} /> {addPending ? 'Submitting…' : 'Add Achievement'}
           </button>
@@ -189,13 +217,47 @@ export function StudentAchievementsSection({
           <ActionMessage state={delState} />
         </div>
       </form>
+      )}
+
+      {/* Search & Status Filters + Category Filter */}
+      <div className="mb-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative min-w-[200px] flex-1 max-w-sm">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter achievements by title or organizer…"
+              aria-label="Filter achievements"
+              className="w-full rounded-lg border border-input bg-background py-1.5 pl-8 pr-3 text-xs outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {(['ALL', 'VERIFIED', 'PENDING', 'REJECTED'] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setStatusFilter(st)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                  statusFilter === st
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {st === 'ALL' ? 'All Statuses' : st === 'REJECTED' ? 'Needs Changes' : st}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Category Filter */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Link
           href="/student/achievements"
           className={`rounded-full px-3 py-1 text-xs font-medium ${
-            !activeCategoryCode ? 'bg-indigo-600 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
+            !activeCategoryCode ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
           }`}
         >
           All
@@ -206,7 +268,7 @@ export function StudentAchievementsSection({
             href={`/student/achievements?category=${encodeURIComponent(c.code)}`}
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               activeCategoryCode === c.code
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -217,10 +279,10 @@ export function StudentAchievementsSection({
 
       {/* Paginated List */}
       <div className="divide-y divide-border">
-        {items.length === 0 ? (
+        {filteredItems.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">No achievements found for this filter.</p>
         ) : (
-          items.map((item) =>
+          filteredItems.map((item) =>
             editingId === item.id ? (
               <form key={item.id} action={editAction} className="grid gap-3 py-4 sm:grid-cols-3">
                 <input type="hidden" name="id" value={item.id} />
@@ -245,7 +307,7 @@ export function StudentAchievementsSection({
                   <MultiDocumentUploadField id={`edit-ach-docs-${item.id}`} name="documentUrls" defaultUrls={item.documentUrls} />
                 </div>
                 <div className="sm:col-span-3 flex items-center gap-2">
-                  <button type="submit" disabled={editPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">
+                  <button type="submit" disabled={editPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                     {editPending ? 'Saving…' : 'Save Changes'}
                   </button>
                   <button type="button" onClick={() => setEditingId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">

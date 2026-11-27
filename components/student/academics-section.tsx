@@ -108,7 +108,7 @@ export function StudentAcademicsSection({
             <button
               type="submit"
               disabled={semAddPending}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
             >
               <Plus size={14} /> {semAddPending ? 'Saving…' : 'Add Semester'}
             </button>
@@ -127,7 +127,7 @@ export function StudentAcademicsSection({
                 <input name="cgpaAtSemester" type="number" step="0.01" min={0} max={10} defaultValue={sem.cgpaAtSemester} required className={studentFieldClass} />
                 <input name="backlogCount" type="number" min={0} defaultValue={sem.backlogCount ?? 0} className={studentFieldClass} />
                 <div className="sm:col-span-4 flex items-center gap-2">
-                  <button type="submit" disabled={semEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">
+                  <button type="submit" disabled={semEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                     {semEditPending ? 'Updating…' : 'Save'}
                   </button>
                   <button type="button" onClick={() => setEditingSemId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">
@@ -208,7 +208,7 @@ export function StudentAcademicsSection({
             <button
               type="submit"
               disabled={eduAddPending}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
             >
               <Plus size={14} /> {eduAddPending ? 'Saving…' : 'Add Education'}
             </button>
@@ -237,7 +237,7 @@ export function StudentAcademicsSection({
                   <input name="endYear" type="number" defaultValue={edu.endYear ?? ''} className={studentFieldClass} placeholder="End" />
                 </div>
                 <div className="sm:col-span-3 flex items-center gap-2">
-                  <button type="submit" disabled={eduEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">
+                  <button type="submit" disabled={eduEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                     {eduEditPending ? 'Updating…' : 'Save'}
                   </button>
                   <button type="button" onClick={() => setEditingEduId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">

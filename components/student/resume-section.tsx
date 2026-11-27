@@ -126,7 +126,7 @@ export function StudentResumeSection({
             type="button"
             disabled={downloading}
             onClick={handleDownloadPdf}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
           >
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
             {downloading ? 'Generating PDF…' : 'Download PDF Resume'}
