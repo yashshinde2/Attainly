@@ -141,7 +141,7 @@ export function FacultyResearchSection({
             <SingleDocumentUploadField id="pub-file" name="fileUrl" label="Full Paper / First Page Proof" />
           </div>
           <div className="sm:col-span-3 flex items-center gap-3">
-            <button type="submit" disabled={pubAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={pubAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {pubAddPending ? 'Saving…' : 'Add / Link Publication'}
             </button>
             <ActionMessage state={pubAddState} />
@@ -170,7 +170,7 @@ export function FacultyResearchSection({
                   <SingleDocumentUploadField id={`edit-pub-${pub.id}`} name="fileUrl" defaultValue={pub.fileUrl ?? ''} />
                 </div>
                 <div className="sm:col-span-3 flex gap-2">
-                  <button type="submit" disabled={pubEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={pubEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setEditingPubId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={pubEditState} />
                 </div>
@@ -286,7 +286,7 @@ export function FacultyResearchSection({
             <SingleDocumentUploadField id="gr-doc" name="documentUrl" label="Sanction Order / Grant Letter" />
           </div>
           <div className="sm:col-span-3 flex items-center gap-3">
-            <button type="submit" disabled={grAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={grAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {grAddPending ? 'Saving…' : 'Add Grant'}
             </button>
             <ActionMessage state={grAddState} />
@@ -312,7 +312,7 @@ export function FacultyResearchSection({
                   <SingleDocumentUploadField id={`edit-gr-${g.id}`} name="documentUrl" defaultValue={g.documentUrl ?? ''} />
                 </div>
                 <div className="sm:col-span-3 flex gap-2">
-                  <button type="submit" disabled={grEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={grEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setEditingGrantId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={grEditState} />
                 </div>
@@ -387,7 +387,7 @@ export function FacultyResearchSection({
             <SingleDocumentUploadField id="fpat-file" name="fileUrl" />
           </div>
           <div className="sm:col-span-2 flex items-center gap-3">
-            <button type="submit" disabled={patAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={patAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {patAddPending ? 'Saving…' : 'Add Patent'}
             </button>
             <ActionMessage state={patAddState} />
@@ -408,7 +408,7 @@ export function FacultyResearchSection({
                   <SingleDocumentUploadField id={`edit-fpat-${pat.id}`} name="fileUrl" defaultValue={pat.fileUrl ?? ''} />
                 </div>
                 <div className="sm:col-span-2 flex gap-2">
-                  <button type="submit" disabled={patEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={patEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setEditingPatId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={patEditState} />
                 </div>

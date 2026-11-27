@@ -107,7 +107,7 @@ export function FacultyDevelopmentSection({
             <SingleDocumentUploadField id="fdp-doc" name="documentUrl" label="Completion Certificate" />
           </div>
           <div className="sm:col-span-3 flex items-center gap-3">
-            <button type="submit" disabled={fdpAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={fdpAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {fdpAddPending ? 'Saving…' : 'Add Program'}
             </button>
             <ActionMessage state={fdpAddState} />
@@ -141,7 +141,7 @@ export function FacultyDevelopmentSection({
                   <SingleDocumentUploadField id={`edit-fdp-${f.id}`} name="documentUrl" defaultValue={f.documentUrl ?? ''} />
                 </div>
                 <div className="sm:col-span-3 flex gap-2">
-                  <button type="submit" disabled={fdpEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={fdpEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setEditingFdpId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={fdpEditState} />
                 </div>
@@ -208,7 +208,7 @@ export function FacultyDevelopmentSection({
             <SingleDocumentUploadField id="fc-file" name="fileUrl" />
           </div>
           <div className="sm:col-span-2 flex items-center gap-3">
-            <button type="submit" disabled={certAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={certAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {certAddPending ? 'Saving…' : 'Add Certification'}
             </button>
             <ActionMessage state={certAddState} />
@@ -228,7 +228,7 @@ export function FacultyDevelopmentSection({
                   <SingleDocumentUploadField id={`edit-fc-${c.id}`} name="fileUrl" defaultValue={c.fileUrl ?? ''} />
                 </div>
                 <div className="sm:col-span-2 flex gap-2">
-                  <button type="submit" disabled={certEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={certEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setEditingCertId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={certEditState} />
                 </div>

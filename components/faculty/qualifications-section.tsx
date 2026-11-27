@@ -30,7 +30,7 @@ export function FacultyQualificationsSection({
   const [editingId, setEditingId] = useState<string | null>(null)
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <StudentSectionHeader
         title="Academic Qualifications"
         description="Manage doctoral, postgraduate, and undergraduate degrees and specializations."
@@ -55,7 +55,7 @@ export function FacultyQualificationsSection({
           <input id="f-year" name="yearCompleted" type="number" min={1950} max={2100} className={studentFieldClass} placeholder="2020" />
         </div>
         <div className="sm:col-span-2 flex items-center gap-3">
-          <button type="submit" disabled={addPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+          <button type="submit" disabled={addPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
             <Plus size={14} /> {addPending ? 'Saving…' : 'Add Qualification'}
           </button>
           <ActionMessage state={addState} />
@@ -73,7 +73,7 @@ export function FacultyQualificationsSection({
               <input name="fieldOfStudy" defaultValue={edu.fieldOfStudy ?? ''} placeholder="Field of study" className={studentFieldClass} />
               <input name="yearCompleted" type="number" defaultValue={edu.yearCompleted ?? ''} placeholder="Year" className={studentFieldClass} />
               <div className="sm:col-span-2 flex gap-2">
-                <button type="submit" disabled={editPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                <button type="submit" disabled={editPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                 <button type="button" onClick={() => setEditingId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                 <ActionMessage state={editState} />
               </div>

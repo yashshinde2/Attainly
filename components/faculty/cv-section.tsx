@@ -101,7 +101,7 @@ export function FacultyCvSection({
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <StudentSectionHeader
           title="Configurable Academic CV &amp; Portfolio Export"
@@ -111,7 +111,7 @@ export function FacultyCvSection({
           type="button"
           disabled={downloading}
           onClick={handleDownloadPdf}
-          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
         >
           {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
           {downloading ? 'Generating CV…' : 'Download Academic CV (PDF)'}

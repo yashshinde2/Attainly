@@ -35,7 +35,7 @@ export function FacultyConsultancySection({
   const [editingId, setEditingId] = useState<string | null>(null)
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <StudentSectionHeader
         title="Consultancy &amp; Industry Advisory"
         description="Record sponsored consultancy projects, client organizations, revenue, and deliverables."
@@ -84,7 +84,7 @@ export function FacultyConsultancySection({
           <SingleDocumentUploadField id="con-doc" name="documentUrl" label="Work Order / Completion Proof" />
         </div>
         <div className="sm:col-span-3 flex items-center gap-3">
-          <button type="submit" disabled={addPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+          <button type="submit" disabled={addPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
             <Plus size={14} /> {addPending ? 'Saving…' : 'Add Consultancy'}
           </button>
           <ActionMessage state={addState} />
@@ -108,7 +108,7 @@ export function FacultyConsultancySection({
                 <SingleDocumentUploadField id={`edit-con-${c.id}`} name="documentUrl" defaultValue={c.documentUrl ?? ''} />
               </div>
               <div className="sm:col-span-3 flex gap-2">
-                <button type="submit" disabled={editPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                <button type="submit" disabled={editPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                 <button type="button" onClick={() => setEditingId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                 <ActionMessage state={editState} />
               </div>

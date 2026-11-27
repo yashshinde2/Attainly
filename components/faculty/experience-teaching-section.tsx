@@ -75,7 +75,7 @@ export function FacultyExperienceTeachingSection({
             <input id="tl-students" name="studentCount" type="number" min={0} className={studentFieldClass} placeholder="64" />
           </div>
           <div className="sm:col-span-3 flex items-center gap-3">
-            <button type="submit" disabled={loadAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={loadAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {loadAddPending ? 'Saving…' : 'Add Teaching Load'}
             </button>
             <ActionMessage state={loadAddState} />
@@ -95,7 +95,7 @@ export function FacultyExperienceTeachingSection({
                 <input name="hoursPerWeek" type="number" defaultValue={tl.hoursPerWeek} required className={studentFieldClass} />
                 <input name="studentCount" type="number" defaultValue={tl.studentCount ?? ''} placeholder="Students" className={studentFieldClass} />
                 <div className="sm:col-span-3 flex gap-2">
-                  <button type="submit" disabled={loadEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={loadEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setEditingLoadId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={loadEditState} />
                 </div>
@@ -160,7 +160,7 @@ export function FacultyExperienceTeachingSection({
             <input id="exp-desc" name="description" className={studentFieldClass} />
           </div>
           <div className="sm:col-span-3 flex items-center gap-3">
-            <button type="submit" disabled={expAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button type="submit" disabled={expAddPending} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
               <Plus size={14} /> {expAddPending ? 'Saving…' : 'Add Experience'}
             </button>
             <ActionMessage state={expAddState} />
@@ -183,7 +183,7 @@ export function FacultyExperienceTeachingSection({
                 <input name="endDate" type="date" defaultValue={exp.endDate ? new Date(exp.endDate).toISOString().slice(0, 10) : ''} className={studentFieldClass} />
                 <input name="description" defaultValue={exp.description ?? ''} className={studentFieldClass} />
                 <div className="sm:col-span-3 flex gap-2">
-                  <button type="submit" disabled={expEditPending} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                  <button type="submit" disabled={expEditPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setEditingExpId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
                   <ActionMessage state={expEditState} />
                 </div>

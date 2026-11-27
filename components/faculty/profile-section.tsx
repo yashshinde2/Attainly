@@ -46,7 +46,7 @@ export function FacultyProfileSection({
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <StudentSectionHeader
         title="My Profile"
         description="Manage your specialization, academic identifiers (ORCID, Google Scholar, Scopus), and contact details."
@@ -186,7 +186,7 @@ export function FacultyProfileSection({
           <button
             type="submit"
             disabled={pending}
-            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
           >
             {pending ? 'Saving…' : 'Save Profile'}
           </button>
