@@ -46,7 +46,7 @@ export function StudentOverviewDashboard({
       .join('') || 'ST'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       {/* Student Profile Summary Card */}
       <section className="rounded-xl border border-border border-l-4 border-l-primary bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">

@@ -34,7 +34,7 @@ export function AdminStudentDirectoryClient({
       <section className="rounded-2xl border border-border bg-card p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-semibold">Student Directory</h2>
+            <h1 className="text-lg font-semibold">Student Directory</h1>
             <p className="text-xs text-muted-foreground">
               {total} {total === 1 ? 'student' : 'students'} matched &bull; Server-filtered &amp; paginated
             </p>

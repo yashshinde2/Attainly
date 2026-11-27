@@ -292,7 +292,7 @@ export function InspectionCenterClient({
                       </a>
                       <form action={delAction}>
                         <input type="hidden" name="collectionId" value={c.id} />
-                        <button type="submit" disabled={delPending} className="rounded-xl border border-border p-2 text-muted-foreground hover:text-destructive">
+                        <button type="submit" disabled={delPending} aria-label={`Delete collection ${c.title}`} className="rounded-xl border border-border p-2 text-muted-foreground hover:text-destructive">
                           <Trash2 size={14} />
                         </button>
                       </form>
