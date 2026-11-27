@@ -1,4 +1,5 @@
 import 'server-only'
+import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/server/db'
 import { AuthorizationError, requirePermission, type AuthenticatedPrincipal } from '../authorization'
 import { assertDepartmentAccess, resolveDepartmentScope } from './admin-command'
@@ -635,51 +636,364 @@ export async function listVerificationCenterQueue(input: {
   departmentId?: string
   overdueOnly?: boolean
   assignedToMe?: boolean
+  limit?: number
+  offset?: number
 }): Promise<VerificationCenterItem[]> {
   requirePermission(input.principal, 'record:verify')
   const { institutionId } = input.principal
   const allowedDepts = await resolveDepartmentScope(input.principal)
   if (input.departmentId) assertDepartmentAccess(allowedDepts, input.departmentId)
 
-  const pendingItems = await listPendingForInstitution({ principal: input.principal })
-  const assignments = await prisma.verificationAssignment.findMany({
-    where: { institutionId },
-  })
-  const reviewerIds = Array.from(new Set(assignments.map((a) => a.assignedToUserId)))
-  const reviewers = reviewerIds.length
-    ? await prisma.user.findMany({
-        where: { institutionId, id: { in: reviewerIds } },
-        select: { id: true, firstName: true, lastName: true },
-      })
-    : []
-  const reviewerNameById = new Map(reviewers.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]))
-  const assignmentByKey = new Map(assignments.map((a) => [`${a.itemType}::${a.itemId}`, a]))
+  const effectiveDepts = input.departmentId ? [input.departmentId] : allowedDepts
+  if (effectiveDepts && effectiveDepts.length === 0) return []
 
-  const cutoff7 = Date.now() - 7 * 24 * 60 * 60 * 1000
-  let enriched: VerificationCenterItem[] = pendingItems.map((item) => {
-    const asg = assignmentByKey.get(`${item.itemType}::${item.id}`)
-    return {
-      ...item,
-      verificationStatus: 'PENDING',
-      departmentId: null,
-      isOverdue: item.submittedAt.getTime() < cutoff7,
-      assignedToUserId: asg?.assignedToUserId ?? null,
-      assignedReviewerName: asg ? (reviewerNameById.get(asg.assignedToUserId) ?? null) : null,
-      rejectionReason: null,
-    }
-  })
+  const statusFilter = input.status ?? 'PENDING'
+  const statusCond =
+    statusFilter === 'ALL'
+      ? Prisma.empty
+      : Prisma.sql`AND t."verificationStatus" = ${statusFilter}`
 
-  if (input.itemType) {
-    enriched = enriched.filter((i) => i.itemType === input.itemType)
-  }
-  if (input.overdueOnly) {
-    enriched = enriched.filter((i) => i.isOverdue)
-  }
-  if (input.assignedToMe) {
-    enriched = enriched.filter((i) => i.assignedToUserId === input.principal.userId)
-  }
+  const cutoff7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const overdueCond = input.overdueOnly ? Prisma.sql`AND t."createdAt" < ${cutoff7}` : Prisma.empty
 
-  return enriched
+  const deptCondStudent = effectiveDepts
+    ? Prisma.sql`AND sp."departmentId" = ANY(${effectiveDepts}::text[])`
+    : Prisma.empty
+  const deptCondFaculty = effectiveDepts
+    ? Prisma.sql`AND fp."departmentId" = ANY(${effectiveDepts}::text[])`
+    : Prisma.empty
+  const deptCondPub = effectiveDepts
+    ? Prisma.sql`AND EXISTS (
+        SELECT 1 FROM "PublicationContributor" pc
+        JOIN "FacultyProfile" fp2 ON fp2.institution_id = pc.institution_id AND fp2.id = pc."facultyProfileId"
+        WHERE pc.institution_id = t.institution_id AND pc."publicationId" = t.id
+          AND fp2."departmentId" = ANY(${effectiveDepts}::text[])
+      )`
+    : Prisma.empty
+
+  const branches: Array<{ key: PendingVerificationItem['itemType']; sql: Prisma.Sql }> = [
+    {
+      key: 'ACHIEVEMENT',
+      sql: Prisma.sql`
+        SELECT t.id, 'ACHIEVEMENT'::text AS item_type, t.title,
+          TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT('Category: ', t.category, ' | Status: ', t.status, CASE WHEN t.description IS NOT NULL AND t.description <> '' THEN CONCAT(' | ', t.description) ELSE '' END) AS details,
+          NULL::text AS file_url, t.version, t."verificationStatus" AS verification_status,
+          sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "Achievement" t
+        JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
+        JOIN "User" u ON u.institution_id = sp.institution_id AND u.id = sp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondStudent}
+      `,
+    },
+    {
+      key: 'CERTIFICATION',
+      sql: Prisma.sql`
+        SELECT t.id, 'CERTIFICATION'::text AS item_type, t.name AS title,
+          TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CASE WHEN t.issuer IS NOT NULL THEN CONCAT('Issuer: ', t.issuer) ELSE NULL END AS details,
+          t."fileUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "StudentCertification" t
+        JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
+        JOIN "User" u ON u.institution_id = sp.institution_id AND u.id = sp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondStudent}
+      `,
+    },
+    {
+      key: 'RESEARCH_PAPER',
+      sql: Prisma.sql`
+        SELECT t.id, 'RESEARCH_PAPER'::text AS item_type, t.title,
+          TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT('Publication: ', COALESCE(t.publication, 'N/A'), CASE WHEN t.doi IS NOT NULL THEN CONCAT(' | DOI: ', t.doi) ELSE '' END) AS details,
+          t."fileUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "StudentResearchPaper" t
+        JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
+        JOIN "User" u ON u.institution_id = sp.institution_id AND u.id = sp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondStudent}
+      `,
+    },
+    {
+      key: 'PATENT',
+      sql: Prisma.sql`
+        SELECT t.id, 'PATENT'::text AS item_type, t.title,
+          TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT('Patent #: ', COALESCE(t."patentNumber", 'N/A'), ' | Status: ', COALESCE(t.status, 'N/A')) AS details,
+          t."fileUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "StudentPatent" t
+        JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
+        JOIN "User" u ON u.institution_id = sp.institution_id AND u.id = sp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondStudent}
+      `,
+    },
+    {
+      key: 'INTERNSHIP',
+      sql: Prisma.sql`
+        SELECT t.id, 'INTERNSHIP'::text AS item_type,
+          CONCAT(t.organization, ' - ', COALESCE(t.role, 'Intern')) AS title,
+          TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT(CASE WHEN t."offerType"::text <> 'NONE' THEN CONCAT('Offer: ', t."offerType"::text, ' | ') ELSE '' END, COALESCE(t.description, '')) AS details,
+          NULL::text AS file_url, t.version, t."verificationStatus" AS verification_status,
+          sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "StudentInternship" t
+        JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
+        JOIN "User" u ON u.institution_id = sp.institution_id AND u.id = sp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondStudent}
+      `,
+    },
+    {
+      key: 'FACULTY_CERTIFICATION',
+      sql: Prisma.sql`
+        SELECT t.id, 'FACULTY_CERTIFICATION'::text AS item_type, t.name AS title,
+          TRIM(CONCAT('Faculty: ', u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email,
+          CASE WHEN fp.office IS NOT NULL THEN CONCAT('Office: ', fp.office) ELSE NULL END AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CASE WHEN t.issuer IS NOT NULL THEN CONCAT('Issuer: ', t.issuer) ELSE NULL END AS details,
+          t."fileUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          fp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "FacultyCertification" t
+        JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId"
+        JOIN "User" u ON u.institution_id = fp.institution_id AND u.id = fp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondFaculty}
+      `,
+    },
+    {
+      key: 'FACULTY_RESEARCH_PAPER',
+      sql: Prisma.sql`
+        SELECT t.id, 'FACULTY_RESEARCH_PAPER'::text AS item_type, t.title,
+          TRIM(CONCAT('Faculty: ', u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email,
+          CASE WHEN fp.office IS NOT NULL THEN CONCAT('Office: ', fp.office) ELSE NULL END AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT('Publication: ', COALESCE(t.publication, 'N/A'), CASE WHEN t.doi IS NOT NULL THEN CONCAT(' | DOI: ', t.doi) ELSE '' END) AS details,
+          t."fileUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          fp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "FacultyResearchPaper" t
+        JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId"
+        JOIN "User" u ON u.institution_id = fp.institution_id AND u.id = fp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondFaculty}
+      `,
+    },
+    {
+      key: 'FACULTY_PATENT',
+      sql: Prisma.sql`
+        SELECT t.id, 'FACULTY_PATENT'::text AS item_type, t.title,
+          TRIM(CONCAT('Faculty: ', u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email,
+          CASE WHEN fp.office IS NOT NULL THEN CONCAT('Office: ', fp.office) ELSE NULL END AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT('Patent #: ', COALESCE(t."patentNumber", 'N/A'), ' | Status: ', COALESCE(t.status, 'N/A')) AS details,
+          t."fileUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          fp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "FacultyPatent" t
+        JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId"
+        JOIN "User" u ON u.institution_id = fp.institution_id AND u.id = fp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondFaculty}
+      `,
+    },
+    {
+      key: 'FACULTY_FDP',
+      sql: Prisma.sql`
+        SELECT t.id, 'FACULTY_FDP'::text AS item_type,
+          CONCAT(t."programType", ': ', t.title) AS title,
+          TRIM(CONCAT('Faculty: ', u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, fp."employeeId" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT(t.organizer, ' (', t.mode, ')') AS details,
+          t."documentUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          fp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "FacultyDevelopmentProgram" t
+        JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId"
+        JOIN "User" u ON u.institution_id = fp.institution_id AND u.id = fp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondFaculty}
+      `,
+    },
+    {
+      key: 'CANONICAL_PUBLICATION',
+      sql: Prisma.sql`
+        SELECT t.id, 'CANONICAL_PUBLICATION'::text AS item_type, t.title,
+          CONCAT('Faculty Publication (', t."publicationType", ')') AS student_name,
+          COALESCE(t."authorsText", 'Institutional contributor') AS student_email,
+          CASE WHEN t.doi IS NOT NULL THEN CONCAT('DOI: ', t.doi) ELSE NULL END AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          NULLIF(CONCAT_WS(' | ', t."journalOrConference", t.indexing), '') AS details,
+          t."fileUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          NULL::text AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "CanonicalPublication" t
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondPub}
+      `,
+    },
+    {
+      key: 'FACULTY_GRANT',
+      sql: Prisma.sql`
+        SELECT t.id, 'FACULTY_GRANT'::text AS item_type, t.title,
+          TRIM(CONCAT('Faculty: ', u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, fp."employeeId" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT(t."fundingAgency", ' (', t.role, ')', CASE WHEN t.amount IS NOT NULL THEN CONCAT(' | ', t.amount::text) ELSE '' END) AS details,
+          t."documentUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          fp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "FacultyResearchGrant" t
+        JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId"
+        JOIN "User" u ON u.institution_id = fp.institution_id AND u.id = fp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondFaculty}
+      `,
+    },
+    {
+      key: 'FACULTY_CONSULTANCY',
+      sql: Prisma.sql`
+        SELECT t.id, 'FACULTY_CONSULTANCY'::text AS item_type, t.title,
+          TRIM(CONCAT('Faculty: ', u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, fp."employeeId" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT(t."clientOrganization", CASE WHEN t.amount IS NOT NULL THEN CONCAT(' | ', t.amount::text) ELSE '' END) AS details,
+          t."documentUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          fp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "FacultyConsultancy" t
+        JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId"
+        JOIN "User" u ON u.institution_id = fp.institution_id AND u.id = fp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondFaculty}
+      `,
+    },
+    {
+      key: 'FACULTY_CONTRIBUTION',
+      sql: Prisma.sql`
+        SELECT t.id, 'FACULTY_CONTRIBUTION'::text AS item_type, t.title,
+          TRIM(CONCAT('Faculty: ', u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, fp."employeeId" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT(t."contributionType", CASE WHEN t."organizationOrBody" IS NOT NULL THEN CONCAT(' | ', t."organizationOrBody") ELSE '' END) AS details,
+          t."documentUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          fp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "FacultyContribution" t
+        JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId"
+        JOIN "User" u ON u.institution_id = fp.institution_id AND u.id = fp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondFaculty}
+      `,
+    },
+    {
+      key: 'PLACEMENT_OFFER',
+      sql: Prisma.sql`
+        SELECT t.id, 'PLACEMENT_OFFER'::text AS item_type,
+          CONCAT(t."companyName", ' — ', t.role) AS title,
+          TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          CONCAT('Status: ', t.status, CASE WHEN t."packageCtc" IS NOT NULL THEN CONCAT(' | CTC: ', t."packageCtc"::text) ELSE '' END) AS details,
+          t."offerLetterUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "StudentPlacementOffer" t
+        JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
+        JOIN "User" u ON u.institution_id = sp.institution_id AND u.id = sp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondStudent}
+      `,
+    },
+    {
+      key: 'GRADUATE_OUTCOME',
+      sql: Prisma.sql`
+        SELECT t.id, 'GRADUATE_OUTCOME'::text AS item_type,
+          CONCAT('Outcome: ', REPLACE(t."outcomeType", '_', ' ')) AS title,
+          TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
+          u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
+          t."createdAt" AS submitted_at,
+          NULLIF(CONCAT_WS(' | ', t."institutionOrEmployer", t."programOrRole"), '') AS details,
+          t."documentUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
+        FROM "StudentGraduateOutcome" t
+        JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
+        JOIN "User" u ON u.institution_id = sp.institution_id AND u.id = sp."userId"
+        WHERE t.institution_id = ${institutionId} ${statusCond} ${overdueCond} ${deptCondStudent}
+      `,
+    },
+  ]
+
+  const selectedBranches = input.itemType
+    ? branches.filter((b) => b.key === input.itemType)
+    : branches
+  if (selectedBranches.length === 0) return []
+
+  const unionSql = Prisma.join(selectedBranches.map((b) => b.sql), ' UNION ALL ')
+  const assignedCond = input.assignedToMe
+    ? Prisma.sql`WHERE va."assignedToUserId" = ${input.principal.userId}`
+    : Prisma.empty
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 500)
+  const offset = Math.max(input.offset ?? 0, 0)
+
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string
+      item_type: PendingVerificationItem['itemType']
+      title: string
+      student_name: string
+      student_email: string
+      enrollment_number: string | null
+      submitted_at: Date
+      details: string | null
+      file_url: string | null
+      version: number
+      verification_status: string
+      department_id: string | null
+      rejection_reason: string | null
+      assigned_to_user_id: string | null
+      assigned_reviewer_name: string | null
+    }>
+  >`
+    WITH queue AS (
+      ${unionSql}
+    )
+    SELECT
+      q.*,
+      va."assignedToUserId" AS assigned_to_user_id,
+      CASE
+        WHEN rev.id IS NOT NULL THEN TRIM(CONCAT(rev."firstName", ' ', rev."lastName"))
+        ELSE NULL
+      END AS assigned_reviewer_name
+    FROM queue q
+    LEFT JOIN "VerificationAssignment" va
+      ON va.institution_id = ${institutionId}
+     AND va."itemType" = q.item_type
+     AND va."itemId" = q.id
+    LEFT JOIN "User" rev
+      ON rev.institution_id = va.institution_id
+     AND rev.id = va."assignedToUserId"
+    ${assignedCond}
+    ORDER BY q.submitted_at DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
+  `
+
+  const cutoffMs = cutoff7.getTime()
+  return rows.map((row) => ({
+    id: row.id,
+    itemType: row.item_type,
+    title: row.title,
+    studentName: row.student_name,
+    studentEmail: row.student_email,
+    enrollmentNumber: row.enrollment_number,
+    submittedAt: row.submitted_at instanceof Date ? row.submitted_at : new Date(row.submitted_at),
+    details: row.details,
+    fileUrl: row.file_url,
+    version: row.version,
+    verificationStatus: row.verification_status,
+    departmentId: row.department_id,
+    isOverdue: (row.submitted_at instanceof Date ? row.submitted_at : new Date(row.submitted_at)).getTime() < cutoffMs,
+    assignedToUserId: row.assigned_to_user_id,
+    assignedReviewerName: row.assigned_reviewer_name,
+    rejectionReason: row.rejection_reason,
+  }))
 }
 
 export async function assignVerificationReviewer(input: {

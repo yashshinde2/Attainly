@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { invalidateInstitutionOverviewCache } from '@/lib/server/overview-cache'
 import { createActionGuard } from '@/lib/server/action-guard'
 import { getCurrentPrincipal } from '@/lib/server/current-principal'
 import { PrismaDepartmentRepository } from '@/lib/server/repositories/department-repository'
@@ -60,16 +61,18 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
 
 export async function addDepartment(_previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    await runAuthorized('department:manage', (principal) =>
-      createInstitutionDepartment({
+    await runAuthorized('department:manage', async (principal) => {
+      const dept = await createInstitutionDepartment({
         principal,
         repository: departmentRepository,
         data: {
           name: formData.get('name'),
           code: formData.get('code'),
         },
-      }),
-    )
+      })
+      invalidateInstitutionOverviewCache(principal.institutionId)
+      return dept
+    })
     revalidatePath('/admin')
     revalidatePath('/admin/departments')
     return { status: 'success', message: 'Department added successfully.' }
@@ -134,8 +137,8 @@ export async function addUser(_previous: AdminActionState, formData: FormData): 
         ? 'department:manage'
         : 'user:import'
 
-    const result = await runAuthorized(permission, (authPrincipal) =>
-      createInstitutionUser({
+    const result = await runAuthorized(permission, async (authPrincipal) => {
+      const created = await createInstitutionUser({
         principal: authPrincipal,
         repository: userRepository,
         data: {
@@ -144,8 +147,10 @@ export async function addUser(_previous: AdminActionState, formData: FormData): 
           lastName: emptyToNull(formData.get('lastName')),
           roleKey: emptyToNull(formData.get('roleKey')),
         },
-      }),
-    )
+      })
+      invalidateInstitutionOverviewCache(authPrincipal.institutionId)
+      return created
+    })
     revalidatePath('/admin')
     revalidatePath('/admin/people')
     return {
@@ -182,13 +187,15 @@ export async function importUsersCsvAction(_previous: AdminActionState, formData
       return { status: 'error', message: 'Please provide a valid CSV file or paste CSV content.' }
     }
 
-    const result = await runAuthorized('user:import', (principal) =>
-      importUsersFromCsv({
+    const result = await runAuthorized('user:import', async (principal) => {
+      const imported = await importUsersFromCsv({
         principal,
         repository: userImportRepository,
         csv: csvContent,
-      }),
-    )
+      })
+      invalidateInstitutionOverviewCache(principal.institutionId)
+      return imported
+    })
 
     revalidatePath('/admin')
     revalidatePath('/admin/people')
@@ -343,9 +350,11 @@ export async function toggleUserActiveAction(
   isActive: boolean,
 ): Promise<AdminActionState> {
   try {
-    await runAuthorized('user:manage', (principal) =>
-      setInstitutionUserActive({ principal, userId, isActive }),
-    )
+    await runAuthorized('user:manage', async (principal) => {
+      const res = await setInstitutionUserActive({ principal, userId, isActive })
+      invalidateInstitutionOverviewCache(principal.institutionId)
+      return res
+    })
     revalidatePath('/admin/people')
     revalidatePath('/admin')
     return { status: 'success', message: isActive ? 'Account enabled.' : 'Account disabled.' }
@@ -360,14 +369,16 @@ export async function addAcademicYearAction(
   formData: FormData,
 ): Promise<AdminActionState> {
   try {
-    await runAuthorized('institution:manage', (principal) =>
-      createAcademicYear(principal, {
+    await runAuthorized('institution:manage', async (principal) => {
+      const res = await createAcademicYear(principal, {
         label: emptyToNull(formData.get('label')),
         startDate: formData.get('startDate'),
         endDate: formData.get('endDate'),
         isCurrent: formData.get('isCurrent') === 'on',
-      }),
-    )
+      })
+      invalidateInstitutionOverviewCache(principal.institutionId)
+      return res
+    })
     revalidatePath('/admin')
     revalidatePath('/admin/settings')
     return { status: 'success', message: 'Academic year created.' }

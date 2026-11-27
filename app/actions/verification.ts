@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createActionGuard } from '@/lib/server/action-guard'
 import { getCurrentPrincipal } from '@/lib/server/current-principal'
 import { assignVerificationReviewer, setVerificationStatus } from '@/lib/server/services/verification'
+import { invalidateInstitutionOverviewCache } from '@/lib/server/overview-cache'
 
 export type VerificationActionState = { status: 'idle' | 'success' | 'error'; message: string }
 
@@ -22,10 +23,14 @@ export async function setVerificationStatusAction(
     const expectedVersionRaw = formData.get('expectedVersion')
     const expectedVersion = expectedVersionRaw ? Number(expectedVersionRaw) : undefined
 
-    await runAuthorized('record:verify', (principal) => setVerificationStatus({
-      principal,
-      data: { itemType, itemId, status, rejectionReason, expectedVersion },
-    }))
+    await runAuthorized('record:verify', async (principal) => {
+      const result = await setVerificationStatus({
+        principal,
+        data: { itemType, itemId, status, rejectionReason, expectedVersion },
+      })
+      invalidateInstitutionOverviewCache(principal.institutionId)
+      return result
+    })
 
     revalidatePath('/admin')
     revalidatePath('/admin/verifications')

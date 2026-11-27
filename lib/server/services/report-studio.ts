@@ -203,35 +203,51 @@ export async function runStudioReport(
             ? { OR: [{ categoryCode: filters.categoryCode }, { categoryCode: filters.categoryCode as never }] }
             : {}
 
-      const rows = await prisma.achievement.findMany({
-        where: {
-          institutionId,
-          ...verificationWhere,
-          ...catFilter,
-          ...(filters.participationLevel ? { participationLevel: filters.participationLevel } : {}),
-          ...(filters.result ? { status: filters.result as never } : {}),
-          studentProfile: {
-            ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
-            ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
-          },
+      const includeMissing = Boolean(filters.includeMissingActivityDates)
+      const baseWhere: Prisma.AchievementWhereInput = {
+        institutionId,
+        ...verificationWhere,
+        ...catFilter,
+        ...(filters.participationLevel ? { participationLevel: filters.participationLevel } : {}),
+        ...(filters.result ? { status: filters.result as never } : {}),
+        studentProfile: {
+          ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
+          ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
         },
-        include: {
-          studentProfile: {
-            include: {
-              user: { select: { firstName: true, lastName: true } },
-              department: { select: { code: true } },
+      }
+      const dateWhere: Prisma.AchievementWhereInput = includeMissing
+        ? {}
+        : {
+            awardedAt: {
+              not: null,
+              ...(dateWindow?.from ? { gte: dateWindow.from } : {}),
+              ...(dateWindow?.to ? { lte: dateWindow.to } : {}),
+            },
+          }
+
+      const [rows, missingAwardedCount] = await Promise.all([
+        prisma.achievement.findMany({
+          where: { ...baseWhere, ...dateWhere },
+          include: {
+            studentProfile: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
+                department: { select: { code: true } },
+              },
             },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-      })
+          orderBy: { createdAt: 'desc' },
+        }),
+        includeMissing ? Promise.resolve(0) : prisma.achievement.count({ where: { ...baseWhere, awardedAt: null } }),
+      ])
 
-      const includeMissing = Boolean(filters.includeMissingActivityDates)
-      const dateFiltered = rows.filter((r) => {
-        const res = evaluateOfficialDateFilter(r.awardedAt, r.createdAt, dateWindow, includeMissing)
-        if (!res.included && res.isMissingActivityDate) excludedMissingDateCount += 1
-        return res.included
-      })
+      excludedMissingDateCount += missingAwardedCount
+      const dateFiltered = includeMissing
+        ? rows.filter((r) => {
+            const res = evaluateOfficialDateFilter(r.awardedAt, r.createdAt, dateWindow, true)
+            return res.included
+          })
+        : rows
       const uniqueStudents = new Set(dateFiltered.map((r) => r.studentProfileId)).size
       summaryMetrics = [
         { label: 'Activity Records', value: dateFiltered.length },
@@ -260,17 +276,32 @@ export async function runStudioReport(
 
     case 'HACKATHONS': {
       const includeMissing = Boolean(filters.includeMissingActivityDates)
+      const hackathonBaseWhere: Prisma.AchievementWhereInput = {
+        institutionId,
+        ...verificationWhere,
+        ...(filters.participationLevel ? { participationLevel: filters.participationLevel } : {}),
+        OR: [
+          { categoryCode: 'HACKATHON' },
+          { title: { contains: 'hackathon', mode: 'insensitive' } },
+          { description: { contains: 'hackathon', mode: 'insensitive' } },
+        ],
+        studentProfile: {
+          ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
+          ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
+        },
+      }
+      const hackathonDateWhere: Prisma.AchievementWhereInput = includeMissing
+        ? {}
+        : {
+            awardedAt: {
+              not: null,
+              ...(dateWindow?.from ? { gte: dateWindow.from } : {}),
+              ...(dateWindow?.to ? { lte: dateWindow.to } : {}),
+            },
+          }
       const [achRows, hackathonEvents] = await Promise.all([
         prisma.achievement.findMany({
-          where: {
-            institutionId,
-            ...verificationWhere,
-            ...(filters.participationLevel ? { participationLevel: filters.participationLevel } : {}),
-            studentProfile: {
-              ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
-              ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
-            },
-          },
+          where: { ...hackathonBaseWhere, ...hackathonDateWhere },
           include: {
             studentProfile: {
               include: {
@@ -286,6 +317,14 @@ export async function runStudioReport(
             categoryCode: 'HACKATHON',
             ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
             ...(filters.participationLevel ? { level: filters.participationLevel } : {}),
+            ...(dateWindow
+              ? {
+                  startsAt: {
+                    ...(dateWindow.from ? { gte: dateWindow.from } : {}),
+                    ...(dateWindow.to ? { lte: dateWindow.to } : {}),
+                  },
+                }
+              : {}),
           },
           include: {
             department: { select: { code: true } },
@@ -467,10 +506,19 @@ export async function runStudioReport(
     }
 
     case 'INTERNSHIPS': {
+      const dateRange = dateWindow
+        ? {
+            ...(dateWindow.from ? { gte: dateWindow.from } : {}),
+            ...(dateWindow.to ? { lte: dateWindow.to } : {}),
+          }
+        : null
       const rows = await prisma.studentInternship.findMany({
         where: {
           institutionId,
           ...verificationWhere,
+          ...(dateRange
+            ? { OR: [{ startDate: dateRange }, { startDate: null, createdAt: dateRange }] }
+            : {}),
           studentProfile: {
             ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
             ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
@@ -501,10 +549,19 @@ export async function runStudioReport(
     }
 
     case 'PLACEMENTS': {
+      const dateRange = dateWindow
+        ? {
+            ...(dateWindow.from ? { gte: dateWindow.from } : {}),
+            ...(dateWindow.to ? { lte: dateWindow.to } : {}),
+          }
+        : null
       const rows = await prisma.studentPlacementOffer.findMany({
         where: {
           institutionId,
           ...verificationWhere,
+          ...(dateRange
+            ? { OR: [{ offeredAt: dateRange }, { offeredAt: null, createdAt: dateRange }] }
+            : {}),
           studentProfile: {
             ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
             ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
@@ -716,6 +773,14 @@ export async function runStudioReport(
         where: {
           institutionId,
           ...verificationWhere,
+          ...(dateWindow
+            ? {
+                startDate: {
+                  ...(dateWindow.from ? { gte: dateWindow.from } : {}),
+                  ...(dateWindow.to ? { lte: dateWindow.to } : {}),
+                },
+              }
+            : {}),
           facultyProfile: { ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}) },
         },
         include: {
@@ -747,6 +812,14 @@ export async function runStudioReport(
         where: {
           institutionId,
           ...verificationWhere,
+          ...(dateWindow
+            ? {
+                startDate: {
+                  ...(dateWindow.from ? { gte: dateWindow.from } : {}),
+                  ...(dateWindow.to ? { lte: dateWindow.to } : {}),
+                },
+              }
+            : {}),
           facultyProfile: { ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}) },
         },
         include: {

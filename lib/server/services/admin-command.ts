@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { prisma } from '@/lib/server/db'
 import { calculateFacultyCompleteness, calculateStudentCompleteness } from '@/lib/completeness'
 import { AuthorizationError, requirePermission, type AuthenticatedPrincipal } from '../authorization'
-import type { Prisma } from '@/generated/prisma/client'
+import { Prisma } from '@/generated/prisma/client'
+import { getCachedOverview, setCachedOverview } from '../overview-cache'
 
 /**
  * Pure helper enforcing department coordinator isolation.
@@ -78,143 +79,150 @@ export async function getAdminCommandOverview(input: {
     assertDepartmentAccess(allowedDepts, input.departmentId)
   }
 
-  const deptFilter = input.departmentId
-    ? input.departmentId
+  const deptIdsParam: string[] | null = input.departmentId
+    ? [input.departmentId]
     : allowedDepts !== null
-      ? { in: allowedDepts }
-      : undefined
+      ? allowedDepts
+      : null
 
-  let dateFilter: { gte?: Date; lte?: Date } | undefined
+  const scopeKey = deptIdsParam ? deptIdsParam.slice().sort().join(',') : 'ALL'
+  const cacheKey = `${institutionId}::v2::${scopeKey}::${input.departmentId ?? 'ALL'}::${input.academicYearLabel ?? 'ALL'}`
+  const cached = getCachedOverview<AdminCommandOverview>(cacheKey)
+  if (cached) return cached
+
+  let dateFrom: Date | null = null
+  let dateTo: Date | null = null
   if (input.academicYearLabel) {
     const ay = await prisma.academicYear.findUnique({
       where: { institutionId_label: { institutionId, label: input.academicYearLabel } },
     })
     if (ay) {
-      dateFilter = { gte: ay.startDate, lte: ay.endDate }
+      dateFrom = ay.startDate
+      dateTo = ay.endDate
     }
   }
 
+  const cutoff7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+  // Consolidated Query 1: All institutional KPIs in a single parameterized SQL aggregate call
+  const deptCondStudent = deptIdsParam
+    ? Prisma.sql`AND sp."departmentId" = ANY(${deptIdsParam}::text[])`
+    : Prisma.empty
+  const deptCondFaculty = deptIdsParam
+    ? Prisma.sql`AND fp."departmentId" = ANY(${deptIdsParam}::text[])`
+    : Prisma.empty
+  const deptCondDirect = deptIdsParam
+    ? Prisma.sql`AND "departmentId" = ANY(${deptIdsParam}::text[])`
+    : Prisma.empty
+  const deptCondDeptTable = deptIdsParam
+    ? Prisma.sql`AND "id" = ANY(${deptIdsParam}::text[])`
+    : Prisma.empty
+  const dateCondCreated =
+    dateFrom && dateTo
+      ? Prisma.sql`AND t."createdAt" >= ${dateFrom} AND t."createdAt" <= ${dateTo}`
+      : Prisma.empty
+  const dateCondEvent =
+    dateFrom && dateTo
+      ? Prisma.sql`AND e."startsAt" >= ${dateFrom} AND e."startsAt" <= ${dateTo}`
+      : Prisma.empty
+
+  const [kpiRow] = await prisma.$queryRaw<
+    Array<{
+      student_count: number
+      faculty_count: number
+      department_count: number
+      course_count: number
+      total_events: number
+      total_participations: number
+      verified_count: number
+      pending_count: number
+      overdue_count: number
+      research_verified_count: number
+      student_engagement_count: number
+      total_offers: number
+      accepted_offers: number
+      placed_outcome_count: number
+      higher_studies_count: number
+      missing_evidence_count: number
+    }>
+  >`
+    SELECT
+      (SELECT COUNT(*)::int FROM "StudentProfile" sp WHERE sp.institution_id = ${institutionId} ${deptCondStudent}) AS student_count,
+      (SELECT COUNT(*)::int FROM "FacultyProfile" fp WHERE fp.institution_id = ${institutionId} ${deptCondFaculty}) AS faculty_count,
+      (SELECT COUNT(*)::int FROM "Department" WHERE institution_id = ${institutionId} ${deptCondDeptTable}) AS department_count,
+      (SELECT COUNT(*)::int FROM "Course" WHERE institution_id = ${institutionId} ${deptCondDirect}) AS course_count,
+      (SELECT COUNT(*)::int FROM "Event" e WHERE e.institution_id = ${institutionId} ${deptIdsParam ? Prisma.sql`AND e."departmentId" = ANY(${deptIdsParam}::text[])` : Prisma.empty} ${dateCondEvent}) AS total_events,
+      (SELECT COUNT(*)::int FROM "EventParticipation" ep JOIN "Event" e ON e.institution_id = ep.institution_id AND e.id = ep."eventId" WHERE ep.institution_id = ${institutionId} ${deptIdsParam ? Prisma.sql`AND e."departmentId" = ANY(${deptIdsParam}::text[])` : Prisma.empty} ${dateCondEvent}) AS total_participations,
+      (
+        (SELECT COUNT(*)::int FROM "Achievement" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentCertification" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentResearchPaper" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentPatent" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentInternship" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentPlacementOffer" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyDevelopmentProgram" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondFaculty} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "CanonicalPublication" t WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyResearchGrant" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondFaculty} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyConsultancy" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondFaculty} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyPatent" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondFaculty} ${dateCondCreated})
+      ) AS verified_count,
+      (
+        (SELECT COUNT(*)::int FROM "Achievement" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentCertification" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentResearchPaper" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentPatent" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentInternship" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyDevelopmentProgram" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondFaculty} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "CanonicalPublication" t WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyResearchGrant" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondFaculty} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyConsultancy" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' ${deptCondFaculty} ${dateCondCreated})
+      ) AS pending_count,
+      (
+        (SELECT COUNT(*)::int FROM "Achievement" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' AND t."createdAt" < ${cutoff7Days} ${deptCondStudent}) +
+        (SELECT COUNT(*)::int FROM "StudentCertification" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' AND t."createdAt" < ${cutoff7Days} ${deptCondStudent}) +
+        (SELECT COUNT(*)::int FROM "FacultyDevelopmentProgram" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' AND t."createdAt" < ${cutoff7Days} ${deptCondFaculty}) +
+        (SELECT COUNT(*)::int FROM "CanonicalPublication" t WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'PENDING' AND t."createdAt" < ${cutoff7Days})
+      ) AS overdue_count,
+      (
+        (SELECT COUNT(*)::int FROM "StudentResearchPaper" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "StudentPatent" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondStudent} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "CanonicalPublication" t WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyResearchGrant" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondFaculty} ${dateCondCreated}) +
+        (SELECT COUNT(*)::int FROM "FacultyPatent" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."verificationStatus" = 'VERIFIED' ${deptCondFaculty} ${dateCondCreated})
+      ) AS research_verified_count,
+      (SELECT COUNT(*)::int FROM "StudentProfile" sp WHERE sp.institution_id = ${institutionId} ${deptCondStudent} AND (
+        EXISTS (SELECT 1 FROM "Achievement" a WHERE a.institution_id = sp.institution_id AND a."studentProfileId" = sp.id) OR
+        EXISTS (SELECT 1 FROM "StudentCertification" c WHERE c.institution_id = sp.institution_id AND c."studentProfileId" = sp.id) OR
+        EXISTS (SELECT 1 FROM "StudentProject" p WHERE p.institution_id = sp.institution_id AND p."studentProfileId" = sp.id) OR
+        EXISTS (SELECT 1 FROM "EventParticipation" ep WHERE ep.institution_id = sp.institution_id AND ep."userId" = sp."userId")
+      )) AS student_engagement_count,
+      (SELECT COUNT(*)::int FROM "StudentPlacementOffer" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} ${deptCondStudent} ${dateCondCreated}) AS total_offers,
+      (SELECT COUNT(*)::int FROM "StudentPlacementOffer" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t.status = 'ACCEPTED' ${deptCondStudent} ${dateCondCreated}) AS accepted_offers,
+      (SELECT COUNT(*)::int FROM "StudentGraduateOutcome" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."outcomeType" = 'PLACED' ${deptCondStudent}) AS placed_outcome_count,
+      (SELECT COUNT(*)::int FROM "StudentGraduateOutcome" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."outcomeType" = 'HIGHER_STUDIES' ${deptCondStudent}) AS higher_studies_count,
+      (
+        (SELECT COUNT(*)::int FROM "StudentCertification" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."fileUrl" IS NULL ${deptCondStudent}) +
+        (SELECT COUNT(*)::int FROM "StudentResearchPaper" t JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId" WHERE t.institution_id = ${institutionId} AND t."fileUrl" IS NULL ${deptCondStudent}) +
+        (SELECT COUNT(*)::int FROM "FacultyDevelopmentProgram" t JOIN "FacultyProfile" fp ON fp.institution_id = t.institution_id AND fp.id = t."facultyProfileId" WHERE t.institution_id = ${institutionId} AND t."documentUrl" IS NULL ${deptCondFaculty}) +
+        (SELECT COUNT(*)::int FROM "CanonicalPublication" t WHERE t.institution_id = ${institutionId} AND t."fileUrl" IS NULL)
+      ) AS missing_evidence_count
+  `
+
+  // Consolidated Query 2: Bounded completeness sample (up to 500 latest profiles) to avoid full 5k-row transfer
   const studentScope: Prisma.StudentProfileWhereInput = {
     institutionId,
-    ...(deptFilter ? { departmentId: deptFilter } : {}),
+    ...(deptIdsParam ? { departmentId: { in: deptIdsParam } } : {}),
   }
   const facultyScope: Prisma.FacultyProfileWhereInput = {
     institutionId,
-    ...(deptFilter ? { departmentId: deptFilter } : {}),
+    ...(deptIdsParam ? { departmentId: { in: deptIdsParam } } : {}),
   }
-  const createdFilter = dateFilter ? { createdAt: dateFilter } : {}
-  const cutoff7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-  // Batch 1: Core counts
-  const [
-    studentCount,
-    facultyCount,
-    departmentCount,
-    courseCount,
-    totalEvents,
-    totalParticipations,
-  ] = await Promise.all([
-    prisma.studentProfile.count({ where: studentScope }),
-    prisma.facultyProfile.count({ where: facultyScope }),
-    prisma.department.count({
-      where: { institutionId, ...(deptFilter ? { id: deptFilter } : {}) },
-    }),
-    prisma.course.count({
-      where: { institutionId, ...(deptFilter ? { departmentId: deptFilter } : {}) },
-    }),
-    prisma.event.count({
-      where: {
-        institutionId,
-        ...(deptFilter ? { departmentId: deptFilter } : {}),
-        ...(dateFilter ? { startsAt: dateFilter } : {}),
-      },
-    }),
-    prisma.eventParticipation.count({
-      where: {
-        institutionId,
-        ...(deptFilter || dateFilter
-          ? {
-              event: {
-                ...(deptFilter ? { departmentId: deptFilter } : {}),
-                ...(dateFilter ? { startsAt: dateFilter } : {}),
-              },
-            }
-          : {}),
-      },
-    }),
-  ])
-
-  // Batch 2: Verification & Research counts
-  const studentRelFilter = deptFilter ? { studentProfile: { departmentId: deptFilter } } : {}
-  const facultyRelFilter = deptFilter ? { facultyProfile: { departmentId: deptFilter } } : {}
-
-  const [
-    vAch, vCert, vPaper, vPat, vInt, vOffer,
-    vFdp, vPub, vGrant, vCon, vFPat,
-    pAch, pCert, pPaper, pPat, pInt, pFdp, pPub, pGrant, pCon,
-    oAch, oCert, oFdp, oPub,
-  ] = await Promise.all([
-    prisma.achievement.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentCertification.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentResearchPaper.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentPatent.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentInternship.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentPlacementOffer.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...studentRelFilter, ...createdFilter } }),
-    prisma.facultyDevelopmentProgram.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...facultyRelFilter, ...createdFilter } }),
-    prisma.canonicalPublication.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...createdFilter } }),
-    prisma.facultyResearchGrant.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...facultyRelFilter, ...createdFilter } }),
-    prisma.facultyConsultancy.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...facultyRelFilter, ...createdFilter } }),
-    prisma.facultyPatent.count({ where: { institutionId, verificationStatus: 'VERIFIED', ...facultyRelFilter, ...createdFilter } }),
-    prisma.achievement.count({ where: { institutionId, verificationStatus: 'PENDING', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentCertification.count({ where: { institutionId, verificationStatus: 'PENDING', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentResearchPaper.count({ where: { institutionId, verificationStatus: 'PENDING', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentPatent.count({ where: { institutionId, verificationStatus: 'PENDING', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentInternship.count({ where: { institutionId, verificationStatus: 'PENDING', ...studentRelFilter, ...createdFilter } }),
-    prisma.facultyDevelopmentProgram.count({ where: { institutionId, verificationStatus: 'PENDING', ...facultyRelFilter, ...createdFilter } }),
-    prisma.canonicalPublication.count({ where: { institutionId, verificationStatus: 'PENDING', ...createdFilter } }),
-    prisma.facultyResearchGrant.count({ where: { institutionId, verificationStatus: 'PENDING', ...facultyRelFilter, ...createdFilter } }),
-    prisma.facultyConsultancy.count({ where: { institutionId, verificationStatus: 'PENDING', ...facultyRelFilter, ...createdFilter } }),
-    prisma.achievement.count({ where: { institutionId, verificationStatus: 'PENDING', createdAt: { lt: cutoff7Days }, ...studentRelFilter } }),
-    prisma.studentCertification.count({ where: { institutionId, verificationStatus: 'PENDING', createdAt: { lt: cutoff7Days }, ...studentRelFilter } }),
-    prisma.facultyDevelopmentProgram.count({ where: { institutionId, verificationStatus: 'PENDING', createdAt: { lt: cutoff7Days }, ...facultyRelFilter } }),
-    prisma.canonicalPublication.count({ where: { institutionId, verificationStatus: 'PENDING', createdAt: { lt: cutoff7Days } } }),
-  ])
-
-  // Batch 3: Engagement, Placements, Missing Evidence, Completeness
-  const [
-    studentEngagementCount,
-    totalOffers,
-    acceptedOffers,
-    placedOutcomeCount,
-    higherStudiesCount,
-    missingCertFile,
-    missingPaperFile,
-    missingFdpFile,
-    missingPubFile,
-    studentCompletenessRows,
-    facultyCompletenessRows,
-  ] = await Promise.all([
-    prisma.studentProfile.count({
-      where: {
-        ...studentScope,
-        OR: [
-          { achievements: { some: {} } },
-          { certifications: { some: {} } },
-          { projects: { some: {} } },
-          { user: { eventEntries: { some: {} } } },
-        ],
-      },
-    }),
-    prisma.studentPlacementOffer.count({ where: { institutionId, ...studentRelFilter, ...createdFilter } }),
-    prisma.studentPlacementOffer.count({ where: { institutionId, status: 'ACCEPTED', ...studentRelFilter, ...createdFilter } }),
-    prisma.studentGraduateOutcome.count({ where: { institutionId, outcomeType: 'PLACED', ...studentRelFilter } }),
-    prisma.studentGraduateOutcome.count({ where: { institutionId, outcomeType: 'HIGHER_STUDIES', ...studentRelFilter } }),
-    prisma.studentCertification.count({ where: { institutionId, fileUrl: null, ...studentRelFilter } }),
-    prisma.studentResearchPaper.count({ where: { institutionId, fileUrl: null, ...studentRelFilter } }),
-    prisma.facultyDevelopmentProgram.count({ where: { institutionId, documentUrl: null, ...facultyRelFilter } }),
-    prisma.canonicalPublication.count({ where: { institutionId, fileUrl: null } }),
+  const [studentCompletenessRows, facultyCompletenessRows] = await Promise.all([
     prisma.studentProfile.findMany({
       where: studentScope,
+      take: 250,
+      orderBy: { updatedAt: 'desc' },
       select: {
         phone: true,
         enrollmentNumber: true,
@@ -237,6 +245,8 @@ export async function getAdminCommandOverview(input: {
     }),
     prisma.facultyProfile.findMany({
       where: facultyScope,
+      take: 250,
+      orderBy: { updatedAt: 'desc' },
       select: {
         phone: true,
         office: true,
@@ -314,21 +324,32 @@ export async function getAdminCommandOverview(input: {
         )
       : 0
 
-  return {
-    studentCount,
-    facultyCount,
-    departmentCount,
-    courseCount,
-    verifiedRecordsCount: vAch + vCert + vPaper + vPat + vInt + vOffer + vFdp + vPub + vGrant + vCon + vFPat,
-    pendingVerificationsCount: pAch + pCert + pPaper + pPat + pInt + pFdp + pPub + pGrant + pCon,
-    overdueVerificationsCount: oAch + oCert + oFdp + oPub,
-    eventStats: { totalEvents, totalParticipations },
-    studentEngagementCount,
-    researchContributionsCount: vPaper + vPat + vPub + vGrant + vFPat,
-    placementOutcomes: { totalOffers, acceptedOffers, placedOutcomeCount, higherStudiesCount },
+  const overview: AdminCommandOverview = {
+    studentCount: kpiRow?.student_count ?? 0,
+    facultyCount: kpiRow?.faculty_count ?? 0,
+    departmentCount: kpiRow?.department_count ?? 0,
+    courseCount: kpiRow?.course_count ?? 0,
+    verifiedRecordsCount: kpiRow?.verified_count ?? 0,
+    pendingVerificationsCount: kpiRow?.pending_count ?? 0,
+    overdueVerificationsCount: kpiRow?.overdue_count ?? 0,
+    eventStats: {
+      totalEvents: kpiRow?.total_events ?? 0,
+      totalParticipations: kpiRow?.total_participations ?? 0,
+    },
+    studentEngagementCount: kpiRow?.student_engagement_count ?? 0,
+    researchContributionsCount: kpiRow?.research_verified_count ?? 0,
+    placementOutcomes: {
+      totalOffers: kpiRow?.total_offers ?? 0,
+      acceptedOffers: kpiRow?.accepted_offers ?? 0,
+      placedOutcomeCount: kpiRow?.placed_outcome_count ?? 0,
+      higherStudiesCount: kpiRow?.higher_studies_count ?? 0,
+    },
     profileCompleteness: { studentAvgPct, facultyAvgPct },
-    missingEvidenceCount: missingCertFile + missingPaperFile + missingFdpFile + missingPubFile,
+    missingEvidenceCount: kpiRow?.missing_evidence_count ?? 0,
   }
+
+  setCachedOverview(cacheKey, overview, 30_000)
+  return overview
 }
 
 export interface StudentDirectoryItem {

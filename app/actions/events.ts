@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { invalidateInstitutionOverviewCache } from '@/lib/server/overview-cache'
 import { createActionGuard } from '@/lib/server/action-guard'
 import { getCurrentPrincipal } from '@/lib/server/current-principal'
 import { PrismaEventRepository } from '@/lib/server/repositories/event-repository'
@@ -30,7 +31,8 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
   return normalized || null
 }
 
-function revalidateEventRoutes() {
+function revalidateEventRoutes(institutionId?: string) {
+  if (institutionId) invalidateInstitutionOverviewCache(institutionId)
   revalidatePath('/admin')
   revalidatePath('/admin/events')
   revalidatePath('/admin/reports')
@@ -94,7 +96,7 @@ export async function createEventAction(
   formData: FormData,
 ): Promise<EventActionState> {
   try {
-    await runAuthorized('event:create', (principal) =>
+    const created = await runAuthorized('event:create', (principal) =>
       createEvent({
         principal,
         repository: eventRepository,
@@ -102,7 +104,7 @@ export async function createEventAction(
       }),
     )
 
-    revalidateEventRoutes()
+    revalidateEventRoutes(created.institutionId)
     return { status: 'success', message: 'Event created successfully.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not create event.'
@@ -116,7 +118,7 @@ export async function updateEventAction(
 ): Promise<EventActionState> {
   try {
     const eventId = String(formData.get('eventId') ?? '')
-    await runAuthorized('event:create', (principal) =>
+    const updated = await runAuthorized('event:create', (principal) =>
       updateEvent({
         principal,
         repository: eventRepository,
@@ -125,7 +127,7 @@ export async function updateEventAction(
       }),
     )
 
-    revalidateEventRoutes()
+    revalidateEventRoutes(updated.institutionId)
     return { status: 'success', message: 'Event updated successfully.' }
   } catch (error) {
     return { status: 'error', message: error instanceof Error ? error.message : 'Could not update event.' }
@@ -138,13 +140,14 @@ export async function archiveEventAction(
 ): Promise<EventActionState> {
   try {
     const eventId = String(formData.get('eventId'))
-    await runAuthorized('event:create', (principal) =>
-      archiveEvent({
+    await runAuthorized('event:create', async (principal) => {
+      await archiveEvent({
         principal,
         repository: eventRepository,
         eventId,
-      }),
-    )
+      })
+      invalidateInstitutionOverviewCache(principal.institutionId)
+    })
 
     revalidateEventRoutes()
     return { status: 'success', message: 'Event archived successfully.' }
