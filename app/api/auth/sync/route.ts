@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { encode } from 'next-auth/jwt'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/server/db'
+import { resolveSessionCookieTarget } from '@/lib/server/session-cookie'
 
 const portalByRole: Record<string, string> = {
   STUDENT: '/student',
   FACULTY: '/faculty',
   INSTITUTION_ADMIN: '/admin',
+  DEPARTMENT_COORDINATOR: '/admin/verifications',
 }
 
 function clearSessionCookies(response: NextResponse) {
@@ -16,7 +18,7 @@ function clearSessionCookies(response: NextResponse) {
   return response
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id || !session.user.institutionId) {
     return clearSessionCookies(NextResponse.redirect(new URL('/login', request.url)))
@@ -59,8 +61,12 @@ export async function GET(request: Request) {
   const response = NextResponse.redirect(new URL(targetUrl, request.url))
 
   if (secret) {
-    const isProduction = process.env.NODE_ENV === 'production'
-    const cookieName = isProduction ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
+    const target = resolveSessionCookieTarget({
+      hasSecureCookie: request.cookies.has('__Secure-next-auth.session-token'),
+      hasPlainCookie: request.cookies.has('next-auth.session-token'),
+      nextAuthUrl: process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? null,
+      requestUrl: request.url,
+    })
 
     const updatedJwt = await encode({
       token: {
@@ -74,20 +80,15 @@ export async function GET(request: Request) {
       secret,
     })
 
-    response.cookies.set(cookieName, updatedJwt, {
+    response.cookies.set(target.cookieName, updatedJwt, {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
-      secure: isProduction,
+      secure: target.secure,
       maxAge: 60 * 60,
     })
-    if (!isProduction) {
-      response.cookies.set('next-auth.session-token', updatedJwt, {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60,
-      })
+    if (request.cookies.has(target.staleCookieName)) {
+      response.cookies.set(target.staleCookieName, '', { path: '/', maxAge: 0 })
     }
   }
 

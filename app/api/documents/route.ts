@@ -6,6 +6,8 @@ import { canAccessDocument, PrismaDocumentRepository } from '@/lib/server/reposi
 import { uploadDocument } from '@/lib/server/services/uploads'
 import { AuthorizationError } from '@/lib/server/authorization'
 import { AuthenticationRequiredError } from '@/lib/server/action-guard'
+import { resolveDepartmentScope } from '@/lib/server/services/admin-command'
+import { prisma } from '@/lib/server/db'
 
 const storage = new VercelBlobDocumentStorage()
 const documentRepository = new PrismaDocumentRepository()
@@ -71,7 +73,6 @@ export async function GET(request: NextRequest) {
       : null
 
     if (!pathname && idParam) {
-      const { prisma } = await import('@/lib/server/db')
       docRecord = await prisma.document.findUnique({
         where: { institutionId_id: { institutionId: principal.institutionId, id: idParam } },
       })
@@ -87,7 +88,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Document not found.' }, { status: 404 })
     }
 
-    if (!canAccessDocument({ principal, docInstitutionId, docOwnerUserId })) {
+    const allowedDepartmentIds = await resolveDepartmentScope(principal)
+    let docDepartmentId: string | null = null
+    if (Array.isArray(allowedDepartmentIds)) {
+      if (docRecord?.entityType?.startsWith('EVENT') && docRecord.entityId) {
+        const evt = await prisma.event.findUnique({
+          where: { institutionId_id: { institutionId: docInstitutionId, id: docRecord.entityId } },
+          select: { departmentId: true },
+        })
+        docDepartmentId = evt?.departmentId ?? null
+      } else {
+        const owner = await prisma.user.findUnique({
+          where: { institutionId_id: { institutionId: docInstitutionId, id: docOwnerUserId } },
+          select: {
+            student: { select: { departmentId: true } },
+            faculty: { select: { departmentId: true } },
+          },
+        })
+        docDepartmentId = owner?.student?.departmentId ?? owner?.faculty?.departmentId ?? null
+      }
+    }
+
+    if (
+      !canAccessDocument({
+        principal,
+        docInstitutionId,
+        docOwnerUserId,
+        allowedDepartmentIds,
+        docDepartmentId,
+      })
+    ) {
       return NextResponse.json({ error: 'You do not have permission to access this document.' }, { status: 403 })
     }
 

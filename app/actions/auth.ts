@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/server/db'
 import { getCurrentPrincipal } from '@/lib/server/current-principal'
+import { resolveSessionCookieTarget } from '@/lib/server/session-cookie'
 
 export type ChangePasswordState = {
   status: 'idle' | 'success' | 'error'
@@ -27,6 +28,7 @@ const portalByRole: Record<string, string> = {
   STUDENT: '/student',
   FACULTY: '/faculty',
   INSTITUTION_ADMIN: '/admin',
+  DEPARTMENT_COORDINATOR: '/admin/verifications',
 }
 
 export async function changePasswordAction(
@@ -81,9 +83,12 @@ export async function changePasswordAction(
     // Re-issue JWT cookie with mustChangePassword = false and fresh role/permissions
     const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET
     if (secret) {
-      const isProduction = process.env.NODE_ENV === 'production'
       const cookieStore = await cookies()
-      const cookieName = isProduction ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
+      const target = resolveSessionCookieTarget({
+        hasSecureCookie: cookieStore.has('__Secure-next-auth.session-token'),
+        hasPlainCookie: cookieStore.has('next-auth.session-token'),
+        nextAuthUrl: process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? null,
+      })
 
       const updatedJwt = await encode({
         token: {
@@ -97,20 +102,15 @@ export async function changePasswordAction(
         secret,
       })
 
-      cookieStore.set(cookieName, updatedJwt, {
+      cookieStore.set(target.cookieName, updatedJwt, {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: isProduction,
+        secure: target.secure,
         maxAge: 60 * 60,
       })
-      if (!isProduction && cookieStore.has('next-auth.session-token')) {
-        cookieStore.set('next-auth.session-token', updatedJwt, {
-          httpOnly: true,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60,
-        })
+      if (cookieStore.has(target.staleCookieName)) {
+        cookieStore.set(target.staleCookieName, '', { path: '/', maxAge: 0 })
       }
     }
 

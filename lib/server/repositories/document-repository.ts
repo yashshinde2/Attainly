@@ -19,11 +19,15 @@ export interface CreateDocumentInput {
  * Pure authorization check for document access:
  * - Same institution required
  * - Either owner with `document:read_own` OR authorized reviewer with `record:verify`
+ * - If `allowedDepartmentIds` is an array (e.g. DEPARTMENT_COORDINATOR), reviewer access
+ *   is strictly restricted to documents belonging to those departments (deny by default if null).
  */
 export function canAccessDocument(input: {
   principal: AuthenticatedPrincipal
   docInstitutionId: string
   docOwnerUserId: string
+  allowedDepartmentIds?: string[] | null
+  docDepartmentId?: string | null
 }): boolean {
   if (input.principal.institutionId !== input.docInstitutionId) {
     return false
@@ -31,8 +35,16 @@ export function canAccessDocument(input: {
   const isOwner =
     input.principal.userId === input.docOwnerUserId &&
     input.principal.permissions.includes('document:read_own')
+  if (isOwner) return true
+
   const isReviewer = input.principal.permissions.includes('record:verify')
-  return isOwner || isReviewer
+  if (!isReviewer) return false
+
+  if (Array.isArray(input.allowedDepartmentIds)) {
+    return Boolean(input.docDepartmentId && input.allowedDepartmentIds.includes(input.docDepartmentId))
+  }
+
+  return true
 }
 
 export class PrismaDocumentRepository {

@@ -5,19 +5,22 @@ const portalByRole: Record<string, string> = {
   STUDENT: '/student',
   FACULTY: '/faculty',
   INSTITUTION_ADMIN: '/admin',
+  DEPARTMENT_COORDINATOR: '/admin/verifications',
 }
 
-const roleByPortal: Record<string, string> = {
-  '/student': 'STUDENT',
-  '/faculty': 'FACULTY',
-  '/admin': 'INSTITUTION_ADMIN',
+const allowedRolesByPortal: Record<string, string[]> = {
+  '/student': ['STUDENT'],
+  '/faculty': ['FACULTY'],
+  '/admin': ['INSTITUTION_ADMIN', 'DEPARTMENT_COORDINATOR'],
 }
+
+const adminOnlyPaths = ['/admin/people', '/admin/settings', '/admin/departments', '/admin/courses']
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   const isChangePasswordRoute = pathname === '/change-password' || pathname.startsWith('/change-password/')
-  const portal = Object.keys(roleByPortal).find((path) => pathname === path || pathname.startsWith(`${path}/`))
+  const portal = Object.keys(allowedRolesByPortal).find((path) => pathname === path || pathname.startsWith(`${path}/`))
 
   if (!portal && !isChangePasswordRoute) return NextResponse.next()
 
@@ -49,8 +52,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // Role portal matching
-  if (portal && token.roleKey !== roleByPortal[portal]) {
+  if (portal && !allowedRolesByPortal[portal].includes(token.roleKey)) {
     return NextResponse.redirect(new URL(portalByRole[token.roleKey] ?? '/', request.url))
+  }
+
+  // Prevent DEPARTMENT_COORDINATOR from accessing institution-wide admin-only routes
+  if (
+    token.roleKey === 'DEPARTMENT_COORDINATOR' &&
+    adminOnlyPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
+    return NextResponse.redirect(new URL('/admin/verifications', request.url))
   }
 
   return NextResponse.next()

@@ -9,6 +9,7 @@ const portalByRole: Record<string, string> = {
   STUDENT: '/student',
   FACULTY: '/faculty',
   INSTITUTION_ADMIN: '/admin',
+  DEPARTMENT_COORDINATOR: '/admin/verifications',
 }
 
 export default async function LoginPage({
