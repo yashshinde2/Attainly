@@ -382,6 +382,23 @@ async function main() {
   console.info('Attainly demo users are ready:')
   for (const demo of demos) console.info(`${demo.roleKey}: ${demo.email}`)
   console.info(`Demo password: ${DEMO_PASSWORD}`)
+
+  const defaultEventCategories = [
+    { code: 'HACKATHON', label: 'Hackathon', subcategories: ['24-Hour Hackathon', 'Ideathon', 'Code Sprint', 'AI/ML Challenge'] },
+    { code: 'WORKSHOP', label: 'Workshop', subcategories: ['Hands-on Lab', 'Bootcamp', 'Skill Workshop', 'Tool Training'] },
+    { code: 'SEMINAR', label: 'Seminar & Guest Lecture', subcategories: ['Guest Lecture', 'Industry Talk', 'Webinar', 'Panel Discussion'] },
+    { code: 'SPORTS', label: 'Sports & Athletics', subcategories: ['Indoor', 'Outdoor', 'Inter-Department', 'Annual Meet'] },
+    { code: 'CULTURAL', label: 'Cultural Activity', subcategories: ['Music & Dance', 'Fine Arts', 'Literary & Debate', 'Annual Fest'] },
+    { code: 'ACADEMIC_COMPETITION', label: 'Academic Competition', subcategories: ['Paper Presentation', 'Project Expo', 'Quiz', 'Coding Contest'] },
+    { code: 'SOCIAL_OUTREACH', label: 'Social Outreach & NSS', subcategories: ['Community Service', 'Blood Donation', 'Environmental Drive', 'Awareness Camp'] },
+  ]
+  for (const cat of defaultEventCategories) {
+    await prisma.eventCategoryConfig.upsert({
+      where: { institutionId_code: { institutionId: institution.id, code: cat.code } },
+      update: { label: cat.label, subcategories: cat.subcategories },
+      create: { institutionId: institution.id, ...cat },
+    })
+  }
 }
 
 main()

@@ -23,7 +23,11 @@ export class PrismaEventRepository implements EventRepository<EventWithDetails, 
   async create(input: { institutionId: string; actorUserId: string; data: EventInput }): Promise<EventWithDetails> {
     const { institutionId, data } = input
     return prisma.event.create({
-      data: { ...data, institutionId },
+      data: {
+        ...data,
+        institutionId,
+        coordinatorUserId: data.coordinatorUserId ?? input.actorUserId,
+      },
       include: {
         department: { select: { id: true, name: true, code: true } },
         _count: { select: { participation: true } },
