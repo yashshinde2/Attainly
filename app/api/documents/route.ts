@@ -1,7 +1,10 @@
+import { createReadStream } from 'node:fs'
+import { stat } from 'node:fs/promises'
+import { Readable } from 'node:stream'
 import { get } from '@vercel/blob'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getCurrentPrincipal } from '@/lib/server/current-principal'
-import { VercelBlobDocumentStorage } from '@/lib/server/repositories/blob-document-storage'
+import { resolveLocalBlobPath, VercelBlobDocumentStorage } from '@/lib/server/repositories/blob-document-storage'
 import { canAccessDocument, PrismaDocumentRepository } from '@/lib/server/repositories/document-repository'
 import { uploadDocument } from '@/lib/server/services/uploads'
 import { AuthorizationError } from '@/lib/server/authorization'
@@ -119,6 +122,28 @@ export async function GET(request: NextRequest) {
       })
     ) {
       return NextResponse.json({ error: 'You do not have permission to access this document.' }, { status: 403 })
+    }
+
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      const localPath = resolveLocalBlobPath(pathname)
+      try {
+        await stat(localPath)
+      } catch {
+        return NextResponse.json({ error: 'Document not found.' }, { status: 404 })
+      }
+      const contentType = docRecord?.mimeType ?? (pathname.endsWith('.png') ? 'image/png' : pathname.endsWith('.jpg') ? 'image/jpeg' : 'application/pdf')
+      const requestedInline = request.nextUrl.searchParams.get('disposition') === 'inline'
+      const disposition = requestedInline && SAFE_INLINE_TYPES.has(contentType) ? 'inline' : 'attachment'
+      const filename = (docRecord?.originalFilename ?? pathname.split('/').pop() ?? 'document').replace(/[\r\n"\\]/g, '')
+      const stream = Readable.toWeb(createReadStream(localPath)) as unknown as ReadableStream<Uint8Array>
+      return new NextResponse(stream, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `${disposition}; filename="${filename}"`,
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
     }
 
     const result = await get(pathname, {

@@ -23,12 +23,13 @@ function getPrismaClient(): PrismaClient {
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
+      ...(process.env.DATABASE_SCHEMA ? { options: `-c search_path=${process.env.DATABASE_SCHEMA}` } : {}),
     })
 
   globalForPrisma.attainlyPool = pool
 
   const client = new PrismaClient({
-    adapter: new PrismaPg(pool),
+    adapter: new PrismaPg(pool, process.env.DATABASE_SCHEMA ? { schema: process.env.DATABASE_SCHEMA } : undefined),
   })
 
   globalForPrisma.attainlyPrisma = client

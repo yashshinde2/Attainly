@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { get, put } from '@vercel/blob'
+import { resolveLocalBlobPath } from '@/lib/server/repositories/blob-document-storage'
 import { prisma } from '@/lib/server/db'
 import { requirePermission, type AuthenticatedPrincipal, type PermissionKey } from '../authorization'
 import { assertDepartmentAccess, resolveDepartmentScope } from './admin-command'
@@ -254,6 +255,19 @@ async function fetchBlobStreamWithRetry(
   pathname: string,
   maxRetries = EXPORT_LIMITS.MAX_RETRIES,
 ): Promise<{ status: 'ok'; stream: ReadableStream<Uint8Array> } | { status: 'missing'; note: string } | { status: 'failed'; note: string }> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const localPath = resolveLocalBlobPath(pathname)
+      await stat(localPath)
+      return {
+        status: 'ok',
+        stream: Readable.toWeb(createReadStream(localPath)) as unknown as ReadableStream<Uint8Array>,
+      }
+    } catch {
+      return { status: 'missing', note: 'Private blob not found in local storage' }
+    }
+  }
+
   let lastErr = 'Storage retrieval failed'
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
