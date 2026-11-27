@@ -1,6 +1,7 @@
 import 'server-only'
 import { prisma } from '@/lib/server/db'
 import { AuthorizationError, requirePermission, type AuthenticatedPrincipal } from '../authorization'
+import { assertDepartmentAccess, resolveDepartmentScope } from './admin-command'
 import { z } from 'zod'
 
 export interface PendingVerificationItem {
@@ -514,6 +515,19 @@ export async function setVerificationStatus(input: {
     throw new Error('Verification record not found in this institution.')
   }
 
+  const allowedDepts = await resolveDepartmentScope(input.principal)
+  if (allowedDepts !== null) {
+    const ownerProfile = await prisma.user.findUnique({
+      where: { institutionId_id: { institutionId, id: ownerUserId } },
+      select: {
+        student: { select: { departmentId: true } },
+        faculty: { select: { departmentId: true } },
+      },
+    })
+    const ownerDepartmentId = ownerProfile?.student?.departmentId ?? ownerProfile?.faculty?.departmentId ?? null
+    assertDepartmentAccess(allowedDepts, ownerDepartmentId)
+  }
+
   const normalizedReason = validateVerificationTransition({
     principalUserId: input.principal.userId,
     ownerUserId,
@@ -576,4 +590,157 @@ export async function setVerificationStatus(input: {
       await prisma.studentGraduateOutcome.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
   }
+
+  await prisma.verificationAuditLog.create({
+    data: {
+      institutionId,
+      itemType,
+      itemId,
+      action: status,
+      actorUserId: input.principal.userId,
+      comment: normalizedReason,
+    },
+  })
+}
+
+export interface VerificationCenterItem extends PendingVerificationItem {
+  verificationStatus: string
+  departmentId: string | null
+  isOverdue: boolean
+  assignedToUserId: string | null
+  assignedReviewerName: string | null
+  rejectionReason: string | null
+}
+
+export async function listVerificationCenterQueue(input: {
+  principal: AuthenticatedPrincipal
+  status?: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'ALL'
+  itemType?: string
+  departmentId?: string
+  overdueOnly?: boolean
+  assignedToMe?: boolean
+}): Promise<VerificationCenterItem[]> {
+  requirePermission(input.principal, 'record:verify')
+  const { institutionId } = input.principal
+  const allowedDepts = await resolveDepartmentScope(input.principal)
+  if (input.departmentId) assertDepartmentAccess(allowedDepts, input.departmentId)
+
+  const pendingItems = await listPendingForInstitution({ principal: input.principal })
+  const assignments = await prisma.verificationAssignment.findMany({
+    where: { institutionId },
+  })
+  const reviewerIds = Array.from(new Set(assignments.map((a) => a.assignedToUserId)))
+  const reviewers = reviewerIds.length
+    ? await prisma.user.findMany({
+        where: { institutionId, id: { in: reviewerIds } },
+        select: { id: true, firstName: true, lastName: true },
+      })
+    : []
+  const reviewerNameById = new Map(reviewers.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]))
+  const assignmentByKey = new Map(assignments.map((a) => [`${a.itemType}::${a.itemId}`, a]))
+
+  const cutoff7 = Date.now() - 7 * 24 * 60 * 60 * 1000
+  let enriched: VerificationCenterItem[] = pendingItems.map((item) => {
+    const asg = assignmentByKey.get(`${item.itemType}::${item.id}`)
+    return {
+      ...item,
+      verificationStatus: 'PENDING',
+      departmentId: null,
+      isOverdue: item.submittedAt.getTime() < cutoff7,
+      assignedToUserId: asg?.assignedToUserId ?? null,
+      assignedReviewerName: asg ? (reviewerNameById.get(asg.assignedToUserId) ?? null) : null,
+      rejectionReason: null,
+    }
+  })
+
+  if (input.itemType) {
+    enriched = enriched.filter((i) => i.itemType === input.itemType)
+  }
+  if (input.overdueOnly) {
+    enriched = enriched.filter((i) => i.isOverdue)
+  }
+  if (input.assignedToMe) {
+    enriched = enriched.filter((i) => i.assignedToUserId === input.principal.userId)
+  }
+
+  return enriched
+}
+
+export async function assignVerificationReviewer(input: {
+  principal: AuthenticatedPrincipal
+  itemType: string
+  itemId: string
+  assignedToUserId: string
+}): Promise<void> {
+  requirePermission(input.principal, 'record:verify')
+  const { institutionId } = input.principal
+
+  const reviewer = await prisma.user.findUnique({
+    where: { institutionId_id: { institutionId, id: input.assignedToUserId } },
+    select: { id: true, isActive: true },
+  })
+  if (!reviewer || !reviewer.isActive) {
+    throw new Error('Selected reviewer is invalid or inactive.')
+  }
+
+  await prisma.verificationAssignment.upsert({
+    where: {
+      institutionId_itemType_itemId: {
+        institutionId,
+        itemType: input.itemType,
+        itemId: input.itemId,
+      },
+    },
+    create: {
+      institutionId,
+      itemType: input.itemType,
+      itemId: input.itemId,
+      assignedToUserId: input.assignedToUserId,
+      assignedByUserId: input.principal.userId,
+    },
+    update: {
+      assignedToUserId: input.assignedToUserId,
+      assignedByUserId: input.principal.userId,
+    },
+  })
+
+  await prisma.verificationAuditLog.create({
+    data: {
+      institutionId,
+      itemType: input.itemType,
+      itemId: input.itemId,
+      action: 'ASSIGNED',
+      actorUserId: input.principal.userId,
+      assignedToUserId: input.assignedToUserId,
+    },
+  })
+}
+
+export async function listVerificationHistory(input: {
+  principal: AuthenticatedPrincipal
+  limit?: number
+}) {
+  requirePermission(input.principal, 'record:verify')
+  const { institutionId } = input.principal
+  const logs = await prisma.verificationAuditLog.findMany({
+    where: { institutionId },
+    orderBy: { createdAt: 'desc' },
+    take: input.limit ?? 25,
+  })
+  const userIds = Array.from(
+    new Set(logs.flatMap((l) => [l.actorUserId, ...(l.assignedToUserId ? [l.assignedToUserId] : [])])),
+  )
+  const users = userIds.length
+    ? await prisma.user.findMany({
+        where: { institutionId, id: { in: userIds } },
+        select: { id: true, firstName: true, lastName: true },
+      })
+    : []
+  const userMap = new Map(users.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]))
+
+  return logs.map((l) => ({
+    ...l,
+    actorName: userMap.get(l.actorUserId) ?? 'Reviewer',
+    assignedToName: l.assignedToUserId ? (userMap.get(l.assignedToUserId) ?? 'Reviewer') : null,
+  }))
 }

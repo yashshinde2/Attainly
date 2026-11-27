@@ -14,6 +14,9 @@ import {
   updateStudentIdentityAction,
   updateFacultyIdentityAction,
   toggleUserActiveAction,
+  addAcademicYearAction,
+  addBatchAction,
+  assignDepartmentCoordinatorAction,
   type AdminActionState,
 } from '@/app/actions/admin'
 import type { Role } from '@/generated/prisma/client'
@@ -130,14 +133,71 @@ export function DepartmentForm() {
   )
 }
 
-export function DepartmentManagement({ departments }: { departments: DepartmentWithCourseCount[] }) {
+type CoordinatorOption = {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  roleKey: string
+}
+
+function DepartmentCoordinatorCell({
+  departmentId,
+  currentCoordinatorId,
+  coordinators,
+}: {
+  departmentId: string
+  currentCoordinatorId: string | null | undefined
+  coordinators: CoordinatorOption[]
+}) {
+  const [state, action, pending] = useActionState(assignDepartmentCoordinatorAction, initialState)
+  return (
+    <form action={action} className="flex flex-col gap-1">
+      <input type="hidden" name="departmentId" value={departmentId} />
+      <div className="flex items-center gap-1.5">
+        <select
+          name="coordinatorUserId"
+          defaultValue={currentCoordinatorId ?? ''}
+          className="rounded-lg border border-input bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="">Unassigned</option>
+          {coordinators.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.firstName} {c.lastName} ({c.roleKey})
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-lg bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground hover:bg-muted disabled:opacity-60"
+        >
+          {pending ? '…' : 'Save'}
+        </button>
+      </div>
+      {state.message && (
+        <span className={`text-[11px] ${state.status === 'error' ? 'text-destructive' : 'text-primary'}`}>
+          {state.message}
+        </span>
+      )}
+    </form>
+  )
+}
+
+export function DepartmentManagement({
+  departments,
+  coordinators = [],
+}: {
+  departments: (DepartmentWithCourseCount & { coordinatorUserId?: string | null })[]
+  coordinators?: CoordinatorOption[]
+}) {
   return (
     <section aria-labelledby="departments-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 id="departments-heading" className="text-lg font-semibold">Academic Departments</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage academic departments and faculties across the institution.
+            Manage academic departments, HOD / coordinator assignments, and faculties across the institution.
           </p>
         </div>
         <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
@@ -156,6 +216,7 @@ export function DepartmentManagement({ departments }: { departments: DepartmentW
                   <th className="pb-3 pr-4">Code</th>
                   <th className="pb-3 pr-4">Department Name</th>
                   <th className="pb-3 pr-4">Courses</th>
+                  {coordinators.length > 0 && <th className="pb-3 pr-4">HOD / Coordinator</th>}
                   <th className="pb-3 pr-4">Created</th>
                   <th className="pb-3 text-right">Action</th>
                 </tr>
@@ -174,6 +235,15 @@ export function DepartmentManagement({ departments }: { departments: DepartmentW
                         <span>{dept._count?.courses ?? 0} courses &rarr;</span>
                       </Link>
                     </td>
+                    {coordinators.length > 0 && (
+                      <td className="py-3.5 pr-4">
+                        <DepartmentCoordinatorCell
+                          departmentId={dept.id}
+                          currentCoordinatorId={dept.coordinatorUserId}
+                          coordinators={coordinators}
+                        />
+                      </td>
+                    )}
                     <td className="py-3.5 pr-4 text-xs text-muted-foreground">
                       {new Date(dept.createdAt).toLocaleDateString()}
                     </td>
@@ -1035,17 +1105,43 @@ export function UserManagement({
 // ==========================================
 // 4. SETTINGS MANAGEMENT
 // ==========================================
+type AcademicYearItem = {
+  id: string
+  label: string
+  startDate: Date | string
+  endDate: Date | string
+  isCurrent: boolean
+}
+
+type BatchItem = {
+  id: string
+  name: string
+  admissionYear: number
+  departmentId: string | null
+  courseId: string | null
+}
+
 export function InstitutionSettingsManagement({
   institution,
   logoUrl,
   criteria,
+  academicYears = [],
+  batches = [],
+  departments = [],
+  courses = [],
 }: {
   institution: { id: string; name: string; slug: string }
   logoUrl: string | null
   criteria: CriterionReferenceItem[]
+  academicYears?: AcademicYearItem[]
+  batches?: BatchItem[]
+  departments?: DepartmentWithCourseCount[]
+  courses?: CourseWithDepartment[]
 }) {
   const [settingsState, settingsAction, isUpdatingSettings] = useActionState(updateInstitutionSettingsAction, initialState)
   const [criterionState, criterionAction, isAddingCriterion] = useActionState(addCriterionCodeAction, initialState)
+  const [ayState, ayAction, isAddingAy] = useActionState(addAcademicYearAction, initialState)
+  const [batchState, batchAction, isAddingBatch] = useActionState(addBatchAction, initialState)
 
   const [currentLogo, setCurrentLogo] = useState(logoUrl || '')
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -1233,6 +1329,213 @@ export function InstitutionSettingsManagement({
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* Academic Years */}
+      <section aria-labelledby="academic-years-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="academic-years-heading" className="text-lg font-semibold">Academic Years</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage institutional academic years used to filter dashboards and reports.
+            </p>
+          </div>
+          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+            {academicYears.length} academic {academicYears.length === 1 ? 'year' : 'years'}
+          </span>
+        </div>
+
+        <form action={ayAction} className="mt-6 flex flex-col gap-4 border-b border-border pb-6">
+          <div className="grid gap-4 sm:grid-cols-4">
+            <div>
+              <label htmlFor="ay-label" className={labelClass}>Label</label>
+              <input
+                id="ay-label"
+                name="label"
+                required
+                maxLength={20}
+                className={fieldClass}
+                placeholder="e.g. 2026-27"
+              />
+            </div>
+            <div>
+              <label htmlFor="ay-start" className={labelClass}>Start Date</label>
+              <input id="ay-start" name="startDate" type="date" required className={fieldClass} />
+            </div>
+            <div>
+              <label htmlFor="ay-end" className={labelClass}>End Date</label>
+              <input id="ay-end" name="endDate" type="date" required className={fieldClass} />
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                <input type="checkbox" name="isCurrent" className="size-4 rounded border-input accent-primary" />
+                Set as current
+              </label>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={isAddingAy}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+            >
+              <Plus size={15} />
+              {isAddingAy ? 'Adding…' : 'Add Academic Year'}
+            </button>
+            <ActionMessage state={ayState} />
+          </div>
+        </form>
+
+        <div className="mt-6 overflow-x-auto">
+          {academicYears.length ? (
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="pb-3 pr-4">Label</th>
+                  <th className="pb-3 pr-4">Start Date</th>
+                  <th className="pb-3 pr-4">End Date</th>
+                  <th className="pb-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {academicYears.map((ay) => (
+                  <tr key={ay.id} className="hover:bg-muted/40">
+                    <td className="py-3 pr-4 font-semibold text-foreground">{ay.label}</td>
+                    <td className="py-3 pr-4 text-xs text-muted-foreground">
+                      {new Date(ay.startDate).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 pr-4 text-xs text-muted-foreground">
+                      {new Date(ay.endDate).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 text-right">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          ay.isCurrent ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'
+                        }`}
+                      >
+                        {ay.isCurrent ? 'Current' : 'Archived'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              No academic years configured yet.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Student Batches */}
+      <section aria-labelledby="batches-heading" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="batches-heading" className="text-lg font-semibold">Student Batches</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Define admission cohorts linked to departments and academic programs.
+            </p>
+          </div>
+          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+            {batches.length} {batches.length === 1 ? 'batch' : 'batches'}
+          </span>
+        </div>
+
+        <form action={batchAction} className="mt-6 flex flex-col gap-4 border-b border-border pb-6">
+          <div className="grid gap-4 sm:grid-cols-4">
+            <div>
+              <label htmlFor="batch-name" className={labelClass}>Batch Name</label>
+              <input
+                id="batch-name"
+                name="name"
+                required
+                maxLength={60}
+                className={fieldClass}
+                placeholder="e.g. 2024-28 CSE"
+              />
+            </div>
+            <div>
+              <label htmlFor="batch-year" className={labelClass}>Admission Year</label>
+              <input
+                id="batch-year"
+                name="admissionYear"
+                type="number"
+                required
+                min={1990}
+                max={2100}
+                defaultValue={new Date().getFullYear()}
+                className={fieldClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="batch-dept" className={labelClass}>Department</label>
+              <select id="batch-dept" name="departmentId" className={fieldClass}>
+                <option value="">All / Unassigned</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="batch-course" className={labelClass}>Program / Course</label>
+              <select id="batch-course" name="courseId" className={fieldClass}>
+                <option value="">All / Unassigned</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={isAddingBatch}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+            >
+              <Plus size={15} />
+              {isAddingBatch ? 'Adding…' : 'Add Batch'}
+            </button>
+            <ActionMessage state={batchState} />
+          </div>
+        </form>
+
+        <div className="mt-6 overflow-x-auto">
+          {batches.length ? (
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="pb-3 pr-4">Batch</th>
+                  <th className="pb-3 pr-4">Admission Year</th>
+                  <th className="pb-3 pr-4">Department</th>
+                  <th className="pb-3">Program</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {batches.map((b) => {
+                  const dept = b.departmentId ? departments.find((d) => d.id === b.departmentId) : null
+                  const course = b.courseId ? courses.find((c) => c.id === b.courseId) : null
+                  return (
+                    <tr key={b.id} className="hover:bg-muted/40">
+                      <td className="py-3 pr-4 font-semibold text-foreground">{b.name}</td>
+                      <td className="py-3 pr-4 text-xs text-muted-foreground">{b.admissionYear}</td>
+                      <td className="py-3 pr-4 text-xs text-muted-foreground">
+                        {dept ? `${dept.name} (${dept.code})` : '—'}
+                      </td>
+                      <td className="py-3 text-xs text-muted-foreground">
+                        {course ? `${course.name} (${course.code})` : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              No student batches configured yet.
+            </p>
+          )}
         </div>
       </section>
     </div>

@@ -128,15 +128,20 @@ model Institution {
   facultyResearchGrants FacultyResearchGrant[]
   facultyConsultancies FacultyConsultancy[]
   facultyContributions FacultyContribution[]
+  academicYears AcademicYear[]
+  batches Batch[]
+  verificationAssignments VerificationAssignment[]
+  verificationAuditLogs VerificationAuditLog[]
 }
 
 model Department {
-  id            String      @default(cuid())
-  institutionId String @map("institution_id")
-  name          String
-  code          String
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                String           @default(cuid())
+  institutionId     String           @map("institution_id")
+  name              String
+  code              String
+  coordinatorUserId String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   courses       Course[]
   events        Event[]
@@ -934,4 +939,66 @@ model FacultyContribution {
 
   @@id([institutionId, id])
   @@index([institutionId, facultyProfileId, contributionType])
+}
+
+model AcademicYear {
+  id            String      @default(cuid())
+  institutionId String      @map("institution_id")
+  label         String
+  startDate     DateTime
+  endDate       DateTime
+  isCurrent     Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, label])
+  @@index([institutionId, isCurrent])
+}
+
+model Batch {
+  id            String      @default(cuid())
+  institutionId String      @map("institution_id")
+  name          String
+  admissionYear Int
+  departmentId  String?
+  courseId      String?
+  createdAt     DateTime    @default(now())
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, name])
+  @@index([institutionId, admissionYear])
+}
+
+model VerificationAssignment {
+  id               String      @default(cuid())
+  institutionId    String      @map("institution_id")
+  itemType         String
+  itemId           String
+  assignedToUserId String
+  assignedByUserId String
+  updatedAt        DateTime    @updatedAt
+  institution      Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, itemType, itemId])
+  @@index([institutionId, assignedToUserId])
+}
+
+model VerificationAuditLog {
+  id               String      @default(cuid())
+  institutionId    String      @map("institution_id")
+  itemType         String
+  itemId           String
+  action           String
+  actorUserId      String
+  assignedToUserId String?
+  comment          String?
+  createdAt        DateTime    @default(now())
+  institution      Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@index([institutionId, itemType, itemId])
+  @@index([institutionId, createdAt])
 }

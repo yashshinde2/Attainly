@@ -19,6 +19,11 @@ import {
   setInstitutionUserActive,
 } from '@/lib/server/services/institution-user'
 import {
+  assignDepartmentCoordinator,
+  createAcademicYear,
+  createBatch,
+} from '@/lib/server/services/admin-command'
+import {
   updateInstitutionSettings,
   addCriterionReferenceCode,
   type CriterionReferenceItem,
@@ -347,5 +352,63 @@ export async function toggleUserActiveAction(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not update account status.'
     return { status: 'error', message }
+  }
+}
+
+export async function addAcademicYearAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await runAuthorized('institution:manage', (principal) =>
+      createAcademicYear(principal, {
+        label: emptyToNull(formData.get('label')),
+        startDate: formData.get('startDate'),
+        endDate: formData.get('endDate'),
+        isCurrent: formData.get('isCurrent') === 'on',
+      }),
+    )
+    revalidatePath('/admin')
+    revalidatePath('/admin/settings')
+    return { status: 'success', message: 'Academic year created.' }
+  } catch (error) {
+    return { status: 'error', message: error instanceof Error ? error.message : 'Could not create academic year.' }
+  }
+}
+
+export async function addBatchAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await runAuthorized('institution:manage', (principal) =>
+      createBatch(principal, {
+        name: emptyToNull(formData.get('name')),
+        admissionYear: formData.get('admissionYear'),
+        departmentId: emptyToNull(formData.get('departmentId')),
+        courseId: emptyToNull(formData.get('courseId')),
+      }),
+    )
+    revalidatePath('/admin/settings')
+    return { status: 'success', message: 'Batch created.' }
+  } catch (error) {
+    return { status: 'error', message: error instanceof Error ? error.message : 'Could not create batch.' }
+  }
+}
+
+export async function assignDepartmentCoordinatorAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    const departmentId = emptyToNull(formData.get('departmentId'))
+    if (!departmentId) throw new Error('Missing department ID.')
+    await runAuthorized('department:manage', (principal) =>
+      assignDepartmentCoordinator(principal, departmentId, emptyToNull(formData.get('coordinatorUserId'))),
+    )
+    revalidatePath('/admin/departments')
+    return { status: 'success', message: 'Department coordinator updated.' }
+  } catch (error) {
+    return { status: 'error', message: error instanceof Error ? error.message : 'Could not assign coordinator.' }
   }
 }

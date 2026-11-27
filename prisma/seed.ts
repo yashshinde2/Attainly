@@ -172,6 +172,17 @@ const roleDefinitions = [
     ],
   },
   {
+    key: 'DEPARTMENT_COORDINATOR',
+    name: 'Department Coordinator / HOD',
+    permissions: [
+      'record:verify',
+      'report:view',
+      'event:create',
+      'event:enter_results',
+      'document:read_own',
+    ],
+  },
+  {
     key: 'STUDENT',
     name: 'Student',
     permissions: [
@@ -271,6 +282,18 @@ async function main() {
       create: { institutionId: institution.id, ...cat, isActive: true },
     })
   }
+
+  await prisma.academicYear.upsert({
+    where: { institutionId_label: { institutionId: institution.id, label: '2025-26' } },
+    update: { isCurrent: true },
+    create: {
+      institutionId: institution.id,
+      label: '2025-26',
+      startDate: new Date('2025-07-01T00:00:00Z'),
+      endDate: new Date('2026-06-30T23:59:59Z'),
+      isCurrent: true,
+    },
+  })
 
   // Bulk create/sync permissions in 1 query
   await prisma.permission.createMany({
