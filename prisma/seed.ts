@@ -57,6 +57,11 @@ const permissionDefinitions = [
   { key: 'achievement:create_own', description: 'Add achievements to the signed-in student profile.' },
   { key: 'achievement:edit_own', description: 'Edit achievements of the signed-in student.' },
   { key: 'achievement:delete_own', description: 'Delete achievements of the signed-in student.' },
+  { key: 'student_placement:read_own', description: 'Read student placement offers.' },
+  { key: 'student_placement:edit_own', description: 'Add or edit student placement offers.' },
+  { key: 'student_placement:delete_own', description: 'Delete student placement offers.' },
+  { key: 'student_outcome:read_own', description: 'Read student graduate outcome.' },
+  { key: 'student_outcome:edit_own', description: 'Edit student graduate outcome.' },
   { key: 'record:verify', description: 'Review and verify student submitted claims.' },
   { key: 'faculty_profile:read_own', description: 'Read the signed-in faculty profile.' },
   { key: 'faculty_profile:edit_own', description: 'Edit the signed-in faculty profile.' },
@@ -172,6 +177,11 @@ const roleDefinitions = [
       'achievement:create_own',
       'achievement:edit_own',
       'achievement:delete_own',
+      'student_placement:read_own',
+      'student_placement:edit_own',
+      'student_placement:delete_own',
+      'student_outcome:read_own',
+      'student_outcome:edit_own',
       'event:participate',
       'document:upload',
       'document:read_own',
@@ -212,6 +222,25 @@ async function main() {
       description: 'Undergraduate Program in Computer Science and Engineering',
     },
   })
+
+  const defaultAchievementCategories = [
+    { code: 'TECHNICAL', name: 'Technical Events', subcategories: ['Coding Contest', 'Paper Presentation', 'Tech Symposium', 'Robotics'], sortOrder: 1 },
+    { code: 'HACKATHON', name: 'Hackathons', subcategories: ['24-Hour Hackathon', 'Smart India Hackathon', 'Ideathon', 'Buildathon'], sortOrder: 2 },
+    { code: 'SPORTS', name: 'Sports', subcategories: ['Athletics', 'Team Sports', 'Indoor Games', 'Inter-University'], sortOrder: 3 },
+    { code: 'CULTURAL', name: 'Cultural Activities', subcategories: ['Music', 'Dance', 'Drama & Theatre', 'Fine Arts & Literature'], sortOrder: 4 },
+    { code: 'ACADEMIC', name: 'Academics', subcategories: ['Merit Scholarship', 'Dean’s List', 'Olympiad', 'Quiz Competition'], sortOrder: 5 },
+    { code: 'SOCIAL_SERVICE', name: 'Social Service', subcategories: ['NSS', 'NCC', 'Community Outreach', 'Environmental Drive'], sortOrder: 6 },
+    { code: 'ENTREPRENEURSHIP', name: 'Entrepreneurship', subcategories: ['Startup Pitch', 'E-Cell', 'Incubation', 'Business Plan'], sortOrder: 7 },
+    { code: 'LEADERSHIP', name: 'Leadership', subcategories: ['Student Council', 'Club President', 'Event Convener', 'Class Representative'], sortOrder: 8 },
+    { code: 'PROFESSIONAL', name: 'Professional Activities', subcategories: ['IEEE / ACM Chapter', 'Open Source', 'Industry Workshop', 'Mentorship'], sortOrder: 9 },
+  ]
+  for (const cat of defaultAchievementCategories) {
+    await prisma.achievementCategoryConfig.upsert({
+      where: { institutionId_code: { institutionId: institution.id, code: cat.code } },
+      update: { name: cat.name, subcategories: cat.subcategories, sortOrder: cat.sortOrder, isActive: true },
+      create: { institutionId: institution.id, ...cat, isActive: true },
+    })
+  }
 
   // Bulk create/sync permissions in 1 query
   await prisma.permission.createMany({

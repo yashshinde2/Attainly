@@ -1,0 +1,31 @@
+import { PortalDashboard } from '@/components/portal-dashboard'
+import { StudentProfileSection } from '@/components/student/profile-section'
+import { getCurrentPrincipal } from '@/lib/server/current-principal'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { PrismaStudentProfileRepository } from '@/lib/server/repositories/student-profile-repository'
+import { readOwnStudentProfile } from '@/lib/server/services/student'
+
+const profileRepository = new PrismaStudentProfileRepository()
+
+export default async function StudentProfilePage() {
+  const [principal, session] = await Promise.all([
+    getCurrentPrincipal(),
+    getServerSession(authOptions),
+  ])
+
+  const profile = await readOwnStudentProfile({ principal, repository: profileRepository })
+
+  return (
+    <PortalDashboard
+      portal="student"
+      content={
+        <StudentProfileSection
+          studentName={session?.user?.name ?? 'Student'}
+          email={session?.user?.email ?? ''}
+          profile={profile}
+        />
+      }
+    />
+  )
+}

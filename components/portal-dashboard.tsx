@@ -3,17 +3,26 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  Award,
   BarChart3,
+  Bell,
   BookOpen,
+  Briefcase,
   CalendarDays,
   ChevronDown,
   Command,
+  FileBadge,
+  FileText,
+  FlaskConical,
+  FolderOpen,
   GraduationCap,
+  Layers,
   LayoutDashboard,
   LogOut,
   Menu,
   Settings2,
   ShieldCheck,
+  UserCircle,
   UsersRound,
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
@@ -24,12 +33,21 @@ const portalConfig = {
   student: {
     label: 'Student portal',
     heading: 'Your student workspace',
-    description: 'A starting point for your learning, campus life, and achievements.',
+    description: 'Academic progression, verified achievements, documents, career outcomes, and resume portfolio.',
     icon: GraduationCap,
     links: [
       ['Overview', '/student', LayoutDashboard],
-      ['Courses', '/student/courses', BookOpen],
+      ['My Profile', '/student/profile', UserCircle],
+      ['Academics', '/student/academics', BookOpen],
+      ['Achievements', '/student/achievements', Award],
+      ['Certifications & Skills', '/student/certifications', FileBadge],
+      ['Projects & Internships', '/student/projects', Layers],
+      ['Research & Innovation', '/student/research', FlaskConical],
+      ['Career & Placements', '/student/career', Briefcase],
       ['Events', '/student/events', CalendarDays],
+      ['My Documents', '/student/documents', FolderOpen],
+      ['Resume & Portfolio', '/student/resume', FileText],
+      ['Notifications', '/student/notifications', Bell],
     ],
   },
   faculty: {

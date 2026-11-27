@@ -46,6 +46,12 @@ import {
   updateOwnAchievement,
   deleteOwnAchievement,
 } from '@/lib/server/services/student-achievements'
+import {
+  addOwnPlacementOffer,
+  deleteOwnPlacementOffer,
+  updateOwnPlacementOffer,
+  upsertOwnGraduateOutcome,
+} from '@/lib/server/services/student-career'
 
 export type StudentActionState = { status: 'idle' | 'success' | 'error'; message: string }
 
@@ -68,6 +74,32 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
   return normalized || null
 }
 
+const parseCommaList = (value: FormDataEntryValue | null): string[] => {
+  if (typeof value !== 'string') return []
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+const parseJsonOrLines = (value: FormDataEntryValue | null): string[] => {
+  if (typeof value !== 'string' || !value.trim()) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map((s) => String(s).trim()).filter(Boolean)
+  } catch {
+    // fallback to comma/newline separated
+  }
+  return value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+}
+
+function revalidateStudentRoutes(...routes: string[]) {
+  revalidatePath('/student')
+  revalidatePath('/student/notifications')
+  revalidatePath('/student/resume')
+  for (const r of routes) revalidatePath(r)
+}
+
 // ---------------- Profile ----------------
 export async function saveStudentProfile(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
   try {
@@ -77,14 +109,18 @@ export async function saveStudentProfile(_previous: StudentActionState, formData
       data: {
         dateOfBirth: emptyToNull(formData.get('dateOfBirth')) ? new Date(`${formData.get('dateOfBirth')}T12:00:00`) : null,
         phone: emptyToNull(formData.get('phone')),
+        alternateEmail: emptyToNull(formData.get('alternateEmail')),
+        emergencyContactName: emptyToNull(formData.get('emergencyContactName')),
+        emergencyContactPhone: emptyToNull(formData.get('emergencyContactPhone')),
         address: emptyToNull(formData.get('address')),
+        bio: emptyToNull(formData.get('bio')),
         linkedinUrl: emptyToNull(formData.get('linkedinUrl')),
         githubUrl: emptyToNull(formData.get('githubUrl')),
         portfolioUrl: emptyToNull(formData.get('portfolioUrl')),
         photoUrl: emptyToNull(formData.get('photoUrl')),
       },
     }))
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/profile')
     return { status: 'success', message: 'Profile updated successfully.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not save your profile. Check fields and try again.'
@@ -96,6 +132,10 @@ export async function saveStudentProfile(_previous: StudentActionState, formData
 export async function addStudentAchievement(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
   try {
     const criterionCode = emptyToNull(formData.get('criterionCode'))
+    const docUrls = parseJsonOrLines(formData.get('documentUrls'))
+    const singleFile = emptyToNull(formData.get('fileUrl'))
+    if (singleFile && !docUrls.includes(singleFile)) docUrls.unshift(singleFile)
+
     await runAuthorized('achievement:create_own', async (principal) => {
       const record = await addOwnAchievement({
         principal,
@@ -103,7 +143,16 @@ export async function addStudentAchievement(_previous: StudentActionState, formD
         data: {
           title: formData.get('title'),
           category: formData.get('category'),
+          categoryCode: emptyToNull(formData.get('categoryCode')),
+          subcategory: emptyToNull(formData.get('subcategory')),
           status: formData.get('status'),
+          participationLevel: emptyToNull(formData.get('participationLevel')),
+          teamType: emptyToNull(formData.get('teamType')),
+          teamName: emptyToNull(formData.get('teamName')),
+          result: emptyToNull(formData.get('result')),
+          organizer: emptyToNull(formData.get('organizer')),
+          role: emptyToNull(formData.get('role')),
+          documentUrls: docUrls,
           description: emptyToNull(formData.get('description')),
           awardedAt: emptyToNull(formData.get('awardedAt')) ? new Date(`${formData.get('awardedAt')}T12:00:00`) : null,
         },
@@ -117,7 +166,7 @@ export async function addStudentAchievement(_previous: StudentActionState, formD
         })
       }
     })
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/achievements')
     return { status: 'success', message: 'Achievement added successfully.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not add achievement.'
@@ -130,6 +179,9 @@ export async function updateStudentAchievement(_previous: StudentActionState, fo
     const id = formData.get('id') as string
     if (!id) throw new Error('Missing record ID.')
     const criterionCode = emptyToNull(formData.get('criterionCode'))
+    const docUrls = parseJsonOrLines(formData.get('documentUrls'))
+    const singleFile = emptyToNull(formData.get('fileUrl'))
+    if (singleFile && !docUrls.includes(singleFile)) docUrls.unshift(singleFile)
 
     await runAuthorized('achievement:edit_own', async (principal) => {
       await updateOwnAchievement({
@@ -139,7 +191,16 @@ export async function updateStudentAchievement(_previous: StudentActionState, fo
         data: {
           title: formData.get('title'),
           category: formData.get('category'),
+          categoryCode: emptyToNull(formData.get('categoryCode')),
+          subcategory: emptyToNull(formData.get('subcategory')),
           status: formData.get('status'),
+          participationLevel: emptyToNull(formData.get('participationLevel')),
+          teamType: emptyToNull(formData.get('teamType')),
+          teamName: emptyToNull(formData.get('teamName')),
+          result: emptyToNull(formData.get('result')),
+          organizer: emptyToNull(formData.get('organizer')),
+          role: emptyToNull(formData.get('role')),
+          documentUrls: docUrls,
           description: emptyToNull(formData.get('description')),
           awardedAt: emptyToNull(formData.get('awardedAt')) ? new Date(`${formData.get('awardedAt')}T12:00:00`) : null,
         },
@@ -153,7 +214,7 @@ export async function updateStudentAchievement(_previous: StudentActionState, fo
         })
       }
     })
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/achievements')
     return { status: 'success', message: 'Achievement updated.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not update achievement.'
@@ -170,7 +231,7 @@ export async function deleteStudentAchievement(_previous: StudentActionState, fo
       repository: achievementRepository,
       id,
     }))
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/achievements')
     return { status: 'success', message: 'Achievement deleted.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not delete achievement.'
@@ -255,6 +316,7 @@ export async function deleteStudentEducation(_previous: StudentActionState, form
 export async function addStudentCertification(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
   try {
     const issuedAtRaw = emptyToNull(formData.get('issuedAt'))
+    const expiresAtRaw = emptyToNull(formData.get('expiresAt'))
     const criterionCode = emptyToNull(formData.get('criterionCode'))
 
     await runAuthorized('student_certification:edit_own', async (auth) => {
@@ -264,8 +326,13 @@ export async function addStudentCertification(_previous: StudentActionState, for
         data: {
           name: formData.get('name'),
           issuer: emptyToNull(formData.get('issuer')),
+          credentialId: emptyToNull(formData.get('credentialId')),
+          credentialUrl: emptyToNull(formData.get('credentialUrl')),
+          duration: emptyToNull(formData.get('duration')),
           fileUrl: emptyToNull(formData.get('fileUrl')),
           issuedAt: issuedAtRaw ? new Date(`${issuedAtRaw}T12:00:00`) : null,
+          expiresAt: expiresAtRaw ? new Date(`${expiresAtRaw}T12:00:00`) : null,
+          skillsEarned: parseCommaList(formData.get('skillsEarned')),
         },
       })
       if (criterionCode) {
@@ -277,7 +344,7 @@ export async function addStudentCertification(_previous: StudentActionState, for
         })
       }
     })
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/certifications')
     return { status: 'success', message: 'Certification added successfully.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not add certification.'
@@ -290,6 +357,7 @@ export async function updateStudentCertification(_previous: StudentActionState, 
     const id = formData.get('id') as string
     if (!id) throw new Error('Missing record ID.')
     const issuedAtRaw = emptyToNull(formData.get('issuedAt'))
+    const expiresAtRaw = emptyToNull(formData.get('expiresAt'))
     const criterionCode = emptyToNull(formData.get('criterionCode'))
 
     await runAuthorized('student_certification:edit_own', async (auth) => {
@@ -300,8 +368,13 @@ export async function updateStudentCertification(_previous: StudentActionState, 
         data: {
           name: formData.get('name'),
           issuer: emptyToNull(formData.get('issuer')),
+          credentialId: emptyToNull(formData.get('credentialId')),
+          credentialUrl: emptyToNull(formData.get('credentialUrl')),
+          duration: emptyToNull(formData.get('duration')),
           fileUrl: emptyToNull(formData.get('fileUrl')),
           issuedAt: issuedAtRaw ? new Date(`${issuedAtRaw}T12:00:00`) : null,
+          expiresAt: expiresAtRaw ? new Date(`${expiresAtRaw}T12:00:00`) : null,
+          skillsEarned: parseCommaList(formData.get('skillsEarned')),
         },
       })
       if (criterionCode) {
@@ -313,7 +386,7 @@ export async function updateStudentCertification(_previous: StudentActionState, 
         })
       }
     })
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/certifications')
     return { status: 'success', message: 'Certification updated.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not update certification.'
@@ -528,12 +601,17 @@ export async function addStudentProject(_previous: StudentActionState, formData:
       data: {
         title: formData.get('title'),
         description: emptyToNull(formData.get('description')),
+        teamMembers: emptyToNull(formData.get('teamMembers')),
+        facultyGuide: emptyToNull(formData.get('facultyGuide')),
+        techStack: parseCommaList(formData.get('techStack')),
+        outcomes: emptyToNull(formData.get('outcomes')),
+        evidenceUrl: emptyToNull(formData.get('evidenceUrl')),
         repositoryUrl: emptyToNull(formData.get('repositoryUrl')),
         startDate: startDateRaw ? new Date(`${startDateRaw}T12:00:00`) : null,
         endDate: endDateRaw ? new Date(`${endDateRaw}T12:00:00`) : null,
       },
     }))
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/projects')
     return { status: 'success', message: 'Project added successfully.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not add project.'
@@ -555,12 +633,17 @@ export async function updateStudentProject(_previous: StudentActionState, formDa
       data: {
         title: formData.get('title'),
         description: emptyToNull(formData.get('description')),
+        teamMembers: emptyToNull(formData.get('teamMembers')),
+        facultyGuide: emptyToNull(formData.get('facultyGuide')),
+        techStack: parseCommaList(formData.get('techStack')),
+        outcomes: emptyToNull(formData.get('outcomes')),
+        evidenceUrl: emptyToNull(formData.get('evidenceUrl')),
         repositoryUrl: emptyToNull(formData.get('repositoryUrl')),
         startDate: startDateRaw ? new Date(`${startDateRaw}T12:00:00`) : null,
         endDate: endDateRaw ? new Date(`${endDateRaw}T12:00:00`) : null,
       },
     }))
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/projects')
     return { status: 'success', message: 'Project updated.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not update project.'
@@ -596,15 +679,20 @@ export async function addStudentInternship(_previous: StudentActionState, formDa
       repository: internshipRepository,
       data: {
         organization: formData.get('organization'),
+        companyLocation: emptyToNull(formData.get('companyLocation')),
         role: emptyToNull(formData.get('role')),
+        facultyGuide: emptyToNull(formData.get('facultyGuide')),
+        techStack: parseCommaList(formData.get('techStack')),
         description: emptyToNull(formData.get('description')),
+        outcomes: emptyToNull(formData.get('outcomes')),
+        evidenceUrl: emptyToNull(formData.get('evidenceUrl')),
         startDate: startDateRaw ? new Date(`${startDateRaw}T12:00:00`) : null,
         endDate: endDateRaw ? new Date(`${endDateRaw}T12:00:00`) : null,
         stipendAmount: emptyToNull(formData.get('stipendAmount')),
         offerType: (emptyToNull(formData.get('offerType')) as 'NONE' | 'PPO_OFFERED' | 'CONVERTED_TO_JOB') ?? 'NONE',
       },
     }))
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/projects')
     return { status: 'success', message: 'Internship added successfully.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not add internship.'
@@ -625,15 +713,20 @@ export async function updateStudentInternship(_previous: StudentActionState, for
       id,
       data: {
         organization: formData.get('organization'),
+        companyLocation: emptyToNull(formData.get('companyLocation')),
         role: emptyToNull(formData.get('role')),
+        facultyGuide: emptyToNull(formData.get('facultyGuide')),
+        techStack: parseCommaList(formData.get('techStack')),
         description: emptyToNull(formData.get('description')),
+        outcomes: emptyToNull(formData.get('outcomes')),
+        evidenceUrl: emptyToNull(formData.get('evidenceUrl')),
         startDate: startDateRaw ? new Date(`${startDateRaw}T12:00:00`) : null,
         endDate: endDateRaw ? new Date(`${endDateRaw}T12:00:00`) : null,
         stipendAmount: emptyToNull(formData.get('stipendAmount')),
         offerType: (emptyToNull(formData.get('offerType')) as 'NONE' | 'PPO_OFFERED' | 'CONVERTED_TO_JOB') ?? 'NONE',
       },
     }))
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/projects')
     return { status: 'success', message: 'Internship updated.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not update internship.'
@@ -770,10 +863,103 @@ export async function deleteStudentSemesterRecord(_previous: StudentActionState,
       repository: semesterRepository,
       id,
     }))
-    revalidatePath('/student')
+    revalidateStudentRoutes('/student/academics')
     return { status: 'success', message: 'Semester record deleted.' }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not delete semester record.'
+    return { status: 'error', message }
+  }
+}
+
+// ---------------- Career: Placement Offers & Graduate Outcomes ----------------
+export async function addPlacementOfferAction(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  try {
+    const offeredAtRaw = emptyToNull(formData.get('offeredAt'))
+    await runAuthorized('student_placement:edit_own', (principal) =>
+      addOwnPlacementOffer({
+        principal,
+        data: {
+          companyName: formData.get('companyName'),
+          role: formData.get('role'),
+          packageCtc: emptyToNull(formData.get('packageCtc')),
+          offerType: emptyToNull(formData.get('offerType')),
+          offeredAt: offeredAtRaw ? new Date(`${offeredAtRaw}T12:00:00`) : null,
+          status: emptyToNull(formData.get('status')) ?? 'OFFERED',
+          offerLetterUrl: emptyToNull(formData.get('offerLetterUrl')),
+        },
+      }),
+    )
+    revalidateStudentRoutes('/student/career')
+    return { status: 'success', message: 'Placement offer added.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not add placement offer.'
+    return { status: 'error', message }
+  }
+}
+
+export async function updatePlacementOfferAction(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  try {
+    const id = formData.get('id') as string
+    if (!id) throw new Error('Missing offer ID.')
+    const offeredAtRaw = emptyToNull(formData.get('offeredAt'))
+    await runAuthorized('student_placement:edit_own', (principal) =>
+      updateOwnPlacementOffer({
+        principal,
+        id,
+        data: {
+          companyName: formData.get('companyName'),
+          role: formData.get('role'),
+          packageCtc: emptyToNull(formData.get('packageCtc')),
+          offerType: emptyToNull(formData.get('offerType')),
+          offeredAt: offeredAtRaw ? new Date(`${offeredAtRaw}T12:00:00`) : null,
+          status: emptyToNull(formData.get('status')) ?? 'OFFERED',
+          offerLetterUrl: emptyToNull(formData.get('offerLetterUrl')),
+        },
+      }),
+    )
+    revalidateStudentRoutes('/student/career')
+    return { status: 'success', message: 'Placement offer updated.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not update placement offer.'
+    return { status: 'error', message }
+  }
+}
+
+export async function deletePlacementOfferAction(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  try {
+    const id = formData.get('id') as string
+    if (!id) throw new Error('Missing offer ID.')
+    await runAuthorized('student_placement:delete_own', (principal) =>
+      deleteOwnPlacementOffer({ principal, id }),
+    )
+    revalidateStudentRoutes('/student/career')
+    return { status: 'success', message: 'Placement offer deleted.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not delete placement offer.'
+    return { status: 'error', message }
+  }
+}
+
+export async function saveGraduateOutcomeAction(_previous: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  try {
+    await runAuthorized('student_outcome:edit_own', (principal) =>
+      upsertOwnGraduateOutcome({
+        principal,
+        data: {
+          outcomeType: formData.get('outcomeType'),
+          organizationOrUniversity: emptyToNull(formData.get('organizationOrUniversity')),
+          programOrRole: emptyToNull(formData.get('programOrRole')),
+          location: emptyToNull(formData.get('location')),
+          alumniEmail: emptyToNull(formData.get('alumniEmail')),
+          alumniLinkedin: emptyToNull(formData.get('alumniLinkedin')),
+          evidenceUrl: emptyToNull(formData.get('evidenceUrl')),
+        },
+      }),
+    )
+    revalidateStudentRoutes('/student/career')
+    return { status: 'success', message: 'Graduate outcome saved.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not save graduate outcome.'
     return { status: 'error', message }
   }
 }

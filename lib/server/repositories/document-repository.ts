@@ -63,6 +63,42 @@ export class PrismaDocumentRepository {
     })
   }
 
+  async listByOwnerPaginated(input: {
+    institutionId: string
+    ownerUserId: string
+    query?: string
+    page?: number
+    pageSize?: number
+  }): Promise<{ items: Document[]; total: number; page: number; pageSize: number }> {
+    const page = Math.max(1, input.page ?? 1)
+    const pageSize = Math.min(50, Math.max(1, input.pageSize ?? 12))
+    const q = input.query?.trim()
+    const where = {
+      institutionId: input.institutionId,
+      ownerUserId: input.ownerUserId,
+      ...(q
+        ? {
+            OR: [
+              { originalFilename: { contains: q, mode: 'insensitive' as const } },
+              { entityType: { contains: q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    }
+
+    const [items, total] = await Promise.all([
+      prisma.document.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.document.count({ where }),
+    ])
+
+    return { items, total, page, pageSize }
+  }
+
   /**
    * Validates that a referenced document path/URL is safe and, if internal,
    * belongs to the current institution and owner. Optionally links entityType/entityId.

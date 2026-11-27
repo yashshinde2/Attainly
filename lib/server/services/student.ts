@@ -17,7 +17,11 @@ function checkPerm(principal: AuthenticatedPrincipal, specific: string, fallback
 const profileInput = z.object({
   dateOfBirth: z.coerce.date().nullable().optional(),
   phone: z.string().trim().max(40).nullable().optional(),
+  alternateEmail: z.string().trim().email('Enter a valid alternate email.').max(254).nullable().optional(),
+  emergencyContactName: z.string().trim().max(120).nullable().optional(),
+  emergencyContactPhone: z.string().trim().max(40).nullable().optional(),
   address: z.string().trim().max(500).nullable().optional(),
+  bio: z.string().trim().max(1000).nullable().optional(),
   linkedinUrl: z.string().trim().max(2000).nullable().optional(),
   githubUrl: z.string().trim().max(2000).nullable().optional(),
   portfolioUrl: z.string().trim().max(2000).nullable().optional(),
@@ -142,9 +146,17 @@ export async function deleteOwnStudentEducation<TEducation>(input: {
 const certificationInput = z.object({
   name: z.string().trim().min(1).max(180),
   issuer: z.string().trim().max(180).nullable().optional(),
+  credentialId: z.string().trim().max(120).nullable().optional(),
+  credentialUrl: z.string().trim().max(2000).nullable().optional(),
+  duration: z.string().trim().max(80).nullable().optional(),
   fileUrl: z.string().trim().max(2000).nullable().optional(),
   issuedAt: z.coerce.date().nullable().optional(),
-})
+  expiresAt: z.coerce.date().nullable().optional(),
+  skillsEarned: z.array(z.string().trim().max(80)).max(20).default([]),
+}).refine(
+  (v) => !v.issuedAt || !v.expiresAt || v.expiresAt >= v.issuedAt,
+  { message: 'Expiry date cannot be earlier than issue date.', path: ['expiresAt'] },
+)
 
 export type StudentCertificationInput = z.infer<typeof certificationInput>
 
@@ -408,6 +420,11 @@ export async function deleteOwnStudentPatent<TPatent>(input: {
 const projectInput = z.object({
   title: z.string().trim().min(1).max(180),
   description: z.string().trim().max(2000).nullable().optional(),
+  teamMembers: z.string().trim().max(500).nullable().optional(),
+  facultyGuide: z.string().trim().max(180).nullable().optional(),
+  techStack: z.array(z.string().trim().max(80)).max(25).default([]),
+  outcomes: z.string().trim().max(1000).nullable().optional(),
+  evidenceUrl: z.string().trim().max(2000).nullable().optional(),
   repositoryUrl: z.string().trim().max(2000).nullable().optional(),
   startDate: z.coerce.date().nullable().optional(),
   endDate: z.coerce.date().nullable().optional(),
@@ -443,6 +460,11 @@ export async function addOwnStudentProject<TProject>(input: {
 }): Promise<TProject> {
   checkPerm(input.principal, 'student_project:edit_own', 'student_profile:edit_own')
   const data = projectInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.evidenceUrl,
+  })
   return input.repository.createByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -458,6 +480,11 @@ export async function updateOwnStudentProject<TProject>(input: {
 }): Promise<TProject> {
   checkPerm(input.principal, 'student_project:edit_own', 'student_profile:edit_own')
   const data = projectInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.evidenceUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -482,8 +509,13 @@ export async function deleteOwnStudentProject<TProject>(input: {
 // ---------------- Internships ----------------
 const internshipInput = z.object({
   organization: z.string().trim().min(1).max(180),
+  companyLocation: z.string().trim().max(150).nullable().optional(),
   role: z.string().trim().max(180).nullable().optional(),
+  facultyGuide: z.string().trim().max(180).nullable().optional(),
+  techStack: z.array(z.string().trim().max(80)).max(25).default([]),
   description: z.string().trim().max(2000).nullable().optional(),
+  outcomes: z.string().trim().max(1000).nullable().optional(),
+  evidenceUrl: z.string().trim().max(2000).nullable().optional(),
   startDate: z.coerce.date().nullable().optional(),
   endDate: z.coerce.date().nullable().optional(),
   stipendAmount: z.string().trim().max(50).nullable().optional(),
@@ -520,6 +552,11 @@ export async function addOwnStudentInternship<TInternship>(input: {
 }): Promise<TInternship> {
   checkPerm(input.principal, 'student_internship:edit_own', 'student_profile:edit_own')
   const data = internshipInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.evidenceUrl,
+  })
   return input.repository.createByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,
@@ -535,6 +572,11 @@ export async function updateOwnStudentInternship<TInternship>(input: {
 }): Promise<TInternship> {
   checkPerm(input.principal, 'student_internship:edit_own', 'student_profile:edit_own')
   const data = internshipInput.parse(input.data)
+  await documentRepository.assertOwnedDocumentReference({
+    institutionId: input.principal.institutionId,
+    ownerUserId: input.principal.userId,
+    fileUrl: data.evidenceUrl,
+  })
   return input.repository.updateByUser({
     institutionId: input.principal.institutionId,
     userId: input.principal.userId,

@@ -14,6 +14,8 @@ export interface PendingVerificationItem {
     | 'FACULTY_CERTIFICATION'
     | 'FACULTY_RESEARCH_PAPER'
     | 'FACULTY_PATENT'
+    | 'PLACEMENT_OFFER'
+    | 'GRADUATE_OUTCOME'
   title: string
   studentName: string
   studentEmail: string
@@ -38,6 +40,8 @@ export async function listPendingForInstitution(input: {
     facultyCertifications,
     facultyPapers,
     facultyPatents,
+    placementOffers,
+    graduateOutcomes,
   ] = await Promise.all([
     prisma.achievement.findMany({
       where: { institutionId, verificationStatus: 'PENDING' },
@@ -77,6 +81,16 @@ export async function listPendingForInstitution(input: {
     prisma.facultyPatent.findMany({
       where: { institutionId, verificationStatus: 'PENDING' },
       include: { facultyProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.studentPlacementOffer.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { studentProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.studentGraduateOutcome.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { studentProfile: { include: { user: true } } },
       orderBy: { createdAt: 'desc' },
     }),
   ])
@@ -196,6 +210,34 @@ export async function listPendingForInstitution(input: {
     })
   }
 
+  for (const po of placementOffers) {
+    items.push({
+      id: po.id,
+      itemType: 'PLACEMENT_OFFER',
+      title: `${po.companyName} — ${po.role}`,
+      studentName: `${po.studentProfile.user.firstName} ${po.studentProfile.user.lastName}`.trim(),
+      studentEmail: po.studentProfile.user.email,
+      enrollmentNumber: po.studentProfile.enrollmentNumber,
+      submittedAt: po.createdAt,
+      details: `Status: ${po.status}${po.packageCtc ? ` | CTC: ${po.packageCtc}` : ''}`,
+      fileUrl: po.offerLetterUrl,
+    })
+  }
+
+  for (const go of graduateOutcomes) {
+    items.push({
+      id: go.id,
+      itemType: 'GRADUATE_OUTCOME',
+      title: `Outcome: ${go.outcomeType.replace(/_/g, ' ')}`,
+      studentName: `${go.studentProfile.user.firstName} ${go.studentProfile.user.lastName}`.trim(),
+      studentEmail: go.studentProfile.user.email,
+      enrollmentNumber: go.studentProfile.enrollmentNumber,
+      submittedAt: go.updatedAt,
+      details: `${go.organizationOrUniversity ?? ''}${go.programOrRole ? ` — ${go.programOrRole}` : ''}`.trim() || null,
+      fileUrl: go.evidenceUrl,
+    })
+  }
+
   return items.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
 }
 
@@ -209,6 +251,8 @@ const statusInput = z.object({
     'FACULTY_CERTIFICATION',
     'FACULTY_RESEARCH_PAPER',
     'FACULTY_PATENT',
+    'PLACEMENT_OFFER',
+    'GRADUATE_OUTCOME',
   ]),
   itemId: z.string().min(1),
   status: z.enum(['VERIFIED', 'REJECTED']),
@@ -296,6 +340,20 @@ async function resolveOwnerUserId(
       })
       return r?.facultyProfile.userId ?? null
     }
+    case 'PLACEMENT_OFFER': {
+      const r = await prisma.studentPlacementOffer.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { studentProfile: { select: { userId: true } } },
+      })
+      return r?.studentProfile.userId ?? null
+    }
+    case 'GRADUATE_OUTCOME': {
+      const r = await prisma.studentGraduateOutcome.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { studentProfile: { select: { userId: true } } },
+      })
+      return r?.studentProfile.userId ?? null
+    }
   }
 }
 
@@ -351,6 +409,12 @@ export async function setVerificationStatus(input: {
       break
     case 'FACULTY_PATENT':
       await prisma.facultyPatent.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
+      break
+    case 'PLACEMENT_OFFER':
+      await prisma.studentPlacementOffer.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
+      break
+    case 'GRADUATE_OUTCOME':
+      await prisma.studentGraduateOutcome.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
   }
 }
