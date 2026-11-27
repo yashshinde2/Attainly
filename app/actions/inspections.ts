@@ -10,6 +10,7 @@ import {
 import {
   completeMyDataRequest,
   createDataCollectionRequests,
+  reviewDataCollectionRequest,
   sendDataRequestReminder,
 } from '@/lib/server/services/data-requests'
 
@@ -72,6 +73,7 @@ export async function createDataCollectionRequestsAction(
         targetUserIds: formData.getAll('targetUserIds').map(String).filter(Boolean),
         departmentId: deptRaw || null,
         dueDate: dueDateRaw ? new Date(dueDateRaw) : null,
+        requireEvidence: formData.get('requireEvidence') === 'on',
       }),
     )
     revalidatePath('/admin/inspections')
@@ -107,18 +109,44 @@ export async function completeDataRequestAction(
 ): Promise<InspectionActionState> {
   try {
     const principal = await getCurrentPrincipal()
-    await completeMyDataRequest(principal, {
+    const recordCombo = String(formData.get('linkedRecord') ?? '').trim()
+    const [parsedType, parsedId] = recordCombo.includes('::') ? recordCombo.split('::') : [null, null]
+
+    const result = await completeMyDataRequest(principal, {
       requestId: String(formData.get('requestId') ?? ''),
       responseNote: String(formData.get('responseNote') ?? '').trim() || null,
-      linkedEntityType: String(formData.get('linkedEntityType') ?? '').trim() || null,
-      linkedEntityId: String(formData.get('linkedEntityId') ?? '').trim() || null,
+      linkedEntityType: parsedType || String(formData.get('linkedEntityType') ?? '').trim() || null,
+      linkedEntityId: parsedId || String(formData.get('linkedEntityId') ?? '').trim() || null,
       linkedDocumentId: String(formData.get('linkedDocumentId') ?? '').trim() || null,
     })
     revalidatePath('/student/notifications')
     revalidatePath('/faculty/notifications')
     revalidatePath('/admin/inspections')
-    return { status: 'success', message: 'Request marked as completed.' }
+    return {
+      status: 'success',
+      message: result.status === 'SUBMITTED' ? 'Submitted for administrator review.' : 'Request marked as completed.',
+    }
   } catch (error) {
     return { status: 'error', message: error instanceof Error ? error.message : 'Could not complete request.' }
+  }
+}
+
+export async function reviewDataRequestAction(
+  _prev: InspectionActionState,
+  formData: FormData,
+): Promise<InspectionActionState> {
+  try {
+    const requestId = String(formData.get('requestId') ?? '')
+    const status = String(formData.get('status') ?? 'COMPLETED') as 'COMPLETED' | 'CORRECTION_REQUIRED'
+    const reviewFeedback = String(formData.get('reviewFeedback') ?? '').trim() || null
+    await runAuthorized('report:view', (principal) =>
+      reviewDataCollectionRequest(principal, { requestId, status, reviewFeedback }),
+    )
+    revalidatePath('/admin/inspections')
+    revalidatePath('/student/notifications')
+    revalidatePath('/faculty/notifications')
+    return { status: 'success', message: `Request updated to ${status.toLowerCase().replace('_', ' ')}.` }
+  } catch (error) {
+    return { status: 'error', message: error instanceof Error ? error.message : 'Could not review request.' }
   }
 }

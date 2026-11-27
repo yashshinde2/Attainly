@@ -9,12 +9,15 @@ import {
   computeDistinctPublicationStats,
   computeEventParticipationMetrics,
   computePlacementMetrics,
+  evaluateOfficialDateFilter,
+  isHackathonAchievement,
   isWithinDateWindow,
   resolveActivityDateWithFlag,
   resolveEffectiveActivityDate,
   type DateWindow,
 } from './reporting-math'
 import {
+  certificationResearchPatentStats,
   criterionCoverageReport,
   profileCompletenessLaggards,
   verificationQueueAging,
@@ -146,6 +149,7 @@ export async function runStudioReport(
   const generatedAt = new Date().toISOString()
   let rawRows: Array<Record<string, string | number | boolean>> = []
   let summaryMetrics: ReportSummaryMetric[] = []
+  let excludedMissingDateCount = 0
   let columns = registry.columns
     .filter((c) => !filters.selectedColumns?.length || filters.selectedColumns.includes(c.key))
     .map((c) => ({ key: c.key, label: c.label }))
@@ -191,16 +195,13 @@ export async function runStudioReport(
     }
 
     case 'ACHIEVEMENTS':
-    case 'SPORTS_CULTURAL':
-    case 'HACKATHONS': {
+    case 'SPORTS_CULTURAL': {
       const catFilter: Prisma.AchievementWhereInput =
         entityType === 'SPORTS_CULTURAL'
           ? { category: { in: ['SPORTS', 'CULTURAL'] } }
-          : entityType === 'HACKATHONS'
-            ? { category: 'TECHNICAL' }
-            : filters.categoryCode
-              ? { OR: [{ categoryCode: filters.categoryCode }, { category: filters.categoryCode as never }] }
-              : {}
+          : filters.categoryCode
+            ? { OR: [{ categoryCode: filters.categoryCode }, { categoryCode: filters.categoryCode as never }] }
+            : {}
 
       const rows = await prisma.achievement.findMany({
         where: {
@@ -225,15 +226,17 @@ export async function runStudioReport(
         orderBy: { createdAt: 'desc' },
       })
 
-      const dateFiltered = rows.filter((r) =>
-        isWithinDateWindow(resolveEffectiveActivityDate(r.awardedAt, r.createdAt), dateWindow),
-      )
+      const includeMissing = Boolean(filters.includeMissingActivityDates)
+      const dateFiltered = rows.filter((r) => {
+        const res = evaluateOfficialDateFilter(r.awardedAt, r.createdAt, dateWindow, includeMissing)
+        if (!res.included && res.isMissingActivityDate) excludedMissingDateCount += 1
+        return res.included
+      })
       const uniqueStudents = new Set(dateFiltered.map((r) => r.studentProfileId)).size
-      const missingDateCount = dateFiltered.filter((r) => !r.awardedAt).length
       summaryMetrics = [
         { label: 'Activity Records', value: dateFiltered.length },
         { label: 'Unique Students', value: uniqueStudents },
-        ...(missingDateCount > 0 ? [{ label: 'Missing Activity Date (Fallback)', value: missingDateCount }] : []),
+        ...(excludedMissingDateCount > 0 ? [{ label: 'Excluded (Missing Activity Date)', value: excludedMissingDateCount }] : []),
       ]
       rawRows = dateFiltered.map((r) => {
         const resolved = resolveActivityDateWithFlag(r.awardedAt, r.createdAt)
@@ -252,6 +255,147 @@ export async function runStudioReport(
           verificationStatus: r.verificationStatus,
         }
       })
+      break
+    }
+
+    case 'HACKATHONS': {
+      const includeMissing = Boolean(filters.includeMissingActivityDates)
+      const [achRows, hackathonEvents] = await Promise.all([
+        prisma.achievement.findMany({
+          where: {
+            institutionId,
+            ...verificationWhere,
+            ...(filters.participationLevel ? { participationLevel: filters.participationLevel } : {}),
+            studentProfile: {
+              ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
+              ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
+            },
+          },
+          include: {
+            studentProfile: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
+                department: { select: { code: true } },
+              },
+            },
+          },
+        }),
+        prisma.event.findMany({
+          where: {
+            institutionId,
+            categoryCode: 'HACKATHON',
+            ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
+            ...(filters.participationLevel ? { level: filters.participationLevel } : {}),
+          },
+          include: {
+            department: { select: { code: true } },
+            participation: {
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    student: { select: { id: true, department: { select: { code: true } } } },
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ])
+
+      const externalHackathons = achRows
+        .filter((r) => isHackathonAchievement(r))
+        .filter((r) => {
+          const res = evaluateOfficialDateFilter(r.awardedAt, r.createdAt, dateWindow, includeMissing)
+          if (!res.included && res.isMissingActivityDate) excludedMissingDateCount += 1
+          return res.included
+        })
+
+      const internalHackathons = hackathonEvents.filter((e) =>
+        isWithinDateWindow(e.startsAt, dateWindow),
+      )
+
+      // Deduplicate: track internal synced achievement IDs / sourceEventIds so we never double-count
+      const internalEventIds = new Set(internalHackathons.map((e) => e.id))
+      const externalOnly = externalHackathons.filter(
+        (a) => !a.sourceEventId || !internalEventIds.has(a.sourceEventId),
+      )
+
+      const uniqueStudents = new Set<string>()
+      const winningStudents = new Set<string>()
+      const winningTeams = new Set<string>()
+      let totalRegistrations = 0
+      let actualParticipants = 0
+
+      for (const a of externalOnly) {
+        uniqueStudents.add(a.studentProfileId)
+        actualParticipants += 1
+        totalRegistrations += 1
+        if (a.status === 'WINNER') {
+          winningStudents.add(a.studentProfileId)
+          if (a.teamName) winningTeams.add(`${a.title}::${a.teamName}`)
+        }
+      }
+
+      const internalRows: Array<Record<string, string | number | boolean>> = []
+      for (const evt of internalHackathons) {
+        for (const p of evt.participation) {
+          if (p.registrationStatus === 'CANCELLED') continue
+          totalRegistrations += 1
+          const isPresent =
+            p.registrationStatus === 'CONFIRMED' ||
+            p.registrationStatus === 'ATTENDED' ||
+            p.attendanceStatus === 'PRESENT'
+          if (!isPresent) continue
+          actualParticipants += 1
+          const stuKey = p.user.student?.id ?? p.userId
+          uniqueStudents.add(stuKey)
+          if (p.role === 'WINNER') {
+            winningStudents.add(stuKey)
+            if (p.teamName) winningTeams.add(`${evt.id}::${p.teamName}`)
+          }
+          internalRows.push({
+            title: evt.title,
+            studentName: `${p.user.firstName} ${p.user.lastName}`,
+            departmentCode: p.user.student?.department?.code ?? evt.department.code,
+            teamName: p.teamName ?? 'Individual',
+            participationLevel: evt.level,
+            status: p.role === 'WINNER' ? 'WINNER' : 'PARTICIPATION',
+            activityDate: evt.startsAt.toISOString().slice(0, 10),
+            verificationStatus: 'VERIFIED',
+          })
+        }
+      }
+
+      summaryMetrics = [
+        { label: 'Hackathon Events', value: internalHackathons.length + new Set(externalOnly.map((a) => a.title)).size },
+        { label: 'Registrations', value: totalRegistrations },
+        { label: 'Actual Participants', value: actualParticipants },
+        { label: 'Unique Students', value: uniqueStudents.size },
+        { label: 'Winning Students', value: winningStudents.size },
+        { label: 'Winning Teams', value: winningTeams.size },
+        ...(excludedMissingDateCount > 0 ? [{ label: 'Excluded (Missing Activity Date)', value: excludedMissingDateCount }] : []),
+      ]
+
+      rawRows = [
+        ...internalRows,
+        ...externalOnly.map((r) => {
+          const resolved = resolveActivityDateWithFlag(r.awardedAt, r.createdAt)
+          return {
+            title: r.title,
+            studentName: `${r.studentProfile.user.firstName} ${r.studentProfile.user.lastName}`,
+            departmentCode: r.studentProfile.department?.code ?? 'Unassigned',
+            teamName: r.teamName ?? 'Individual',
+            participationLevel: r.participationLevel ?? '—',
+            status: r.status,
+            activityDate: resolved.isFallbackCreatedAt
+              ? `${resolved.date.toISOString().slice(0, 10)} (fallback)`
+              : resolved.date.toISOString().slice(0, 10),
+            verificationStatus: r.verificationStatus,
+          }
+        }),
+      ]
       break
     }
 
@@ -742,14 +886,34 @@ export async function runStudioReport(
       break
     }
 
+    case 'CERT_RESEARCH_PATENT': {
+      const stats = await certificationResearchPatentStats({
+        principal,
+        departmentId: filters.departmentId ?? null,
+        batchYear: filters.batchYear ?? null,
+        dateRange:
+          filters.dateFrom || filters.dateTo
+            ? { from: filters.dateFrom ?? null, to: filters.dateTo ?? null }
+            : undefined,
+        includeUnverified,
+      })
+      rawRows = stats.map((r) => ({ ...r }))
+      summaryMetrics = [
+        { label: 'Total Records', value: stats.reduce((s, r) => s + r.count, 0) },
+      ]
+      break
+    }
+
     case 'DATA_QUALITY': {
-      const [missingEnrollment, missingStudentDept, missingEmployeeId, unverifiedAch, missingEvidenceAch] =
+      const [missingEnrollment, missingStudentDept, missingEmployeeId, unverifiedAch, missingEvidenceAch, missingAchDate, missingCertDate] =
         await Promise.all([
           prisma.studentProfile.count({ where: { institutionId, enrollmentNumber: null } }),
           prisma.studentProfile.count({ where: { institutionId, departmentId: null } }),
           prisma.facultyProfile.count({ where: { institutionId, employeeId: null } }),
           prisma.achievement.count({ where: { institutionId, verificationStatus: 'PENDING' } }),
           prisma.achievement.count({ where: { institutionId, documentUrls: { isEmpty: true } } }),
+          prisma.achievement.count({ where: { institutionId, awardedAt: null } }),
+          prisma.studentCertification.count({ where: { institutionId, issuedAt: null } }),
         ])
       rawRows = [
         { checkName: 'Students missing enrollment number', scope: 'Student Profiles', issueCount: missingEnrollment, severity: missingEnrollment > 0 ? 'HIGH' : 'OK', recommendation: 'Assign enrollment numbers in Admin → Users & Access' },
@@ -757,38 +921,50 @@ export async function runStudioReport(
         { checkName: 'Faculty missing employee ID', scope: 'Faculty Profiles', issueCount: missingEmployeeId, severity: missingEmployeeId > 0 ? 'MEDIUM' : 'OK', recommendation: 'Assign employee ID in Faculty Identity' },
         { checkName: 'Pending unverified achievements', scope: 'Verification Queue', issueCount: unverifiedAch, severity: unverifiedAch > 0 ? 'MEDIUM' : 'OK', recommendation: 'Review in Admin → Verifications' },
         { checkName: 'Achievements without supporting evidence URLs', scope: 'Evidence Audit', issueCount: missingEvidenceAch, severity: missingEvidenceAch > 0 ? 'MEDIUM' : 'OK', recommendation: 'Request evidence via Data Collection Requests' },
+        { checkName: 'Achievements missing actual activity date (awardedAt)', scope: 'Official Date Audit', issueCount: missingAchDate, severity: missingAchDate > 0 ? 'MEDIUM' : 'OK', recommendation: 'Update actual activity dates so records appear in official dated reports' },
+        { checkName: 'Student certifications missing issuedAt date', scope: 'Official Date Audit', issueCount: missingCertDate, severity: missingCertDate > 0 ? 'LOW' : 'OK', recommendation: 'Add certificate issue dates' },
       ]
       summaryMetrics = [{ label: 'Total Quality Flags', value: rawRows.reduce((s, r) => s + Number(r.issueCount), 0) }]
       break
     }
 
     default: {
-      // CERT_RESEARCH_PATENT fallback
-      const aging = await verificationQueueAging({ principal })
-      rawRows = aging.map((r) => ({ ...r }))
-      break
+      const _exhaustive: never = entityType
+      throw new Error(`Unsupported report type: ${String(_exhaustive)}`)
     }
   }
 
-  const grouped = applyGrouping(rawRows, filters.groupBy)
+  const drillVal = filters.drillDownValue
+  const isDrillDown = Boolean(filters.groupBy && drillVal !== undefined && drillVal !== '')
+  const drillFilteredRows = isDrillDown
+    ? rawRows.filter((row) => String(row[filters.groupBy!] ?? 'Unspecified') === drillVal)
+    : rawRows
+
+  const grouped = !isDrillDown ? applyGrouping(rawRows, filters.groupBy) : null
   const effectiveColumns = grouped ? grouped.columns : columns
-  const effectiveRows = grouped ? grouped.rows : rawRows
+  const effectiveRows = grouped ? grouped.rows : drillFilteredRows
   const { pagedRows, totalRows, page, pageSize } = applySortAndPaginate(effectiveRows, filters)
 
   return {
     entityType,
-    title: registry.label,
+    title: isDrillDown ? `${registry.label} — ${filters.groupBy}: ${drillVal}` : registry.label,
     subtitle: registry.description,
     institutionName: institution?.name ?? 'Attainly Institution',
     countingUnit: registry.countingUnit,
     dateFieldSemantics: registry.dateFieldSemantics,
-    verificationScope,
+    verificationScope: filters.includeMissingActivityDates
+      ? `${verificationScope} (Provisional: includes missing activity dates)`
+      : verificationScope,
+    excludedMissingDateCount,
+    groupedBy: grouped ? filters.groupBy : undefined,
+    drillDownValue: isDrillDown ? drillVal : undefined,
     appliedFilters: {
       ...(ayLabel ? { academicYear: ayLabel } : {}),
       ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
       ...(filters.batchYear ? { batchYear: String(filters.batchYear) } : {}),
       ...(filters.dateFrom ? { from: filters.dateFrom } : {}),
       ...(filters.dateTo ? { to: filters.dateTo } : {}),
+      ...(isDrillDown ? { [`${filters.groupBy}`]: drillVal! } : {}),
     },
     summaryMetrics,
     columns: effectiveColumns,

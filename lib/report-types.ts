@@ -17,8 +17,10 @@ export interface ReportFilterValues {
   dateFrom?: string
   dateTo?: string
   includeUnverified?: boolean
+  includeMissingActivityDates?: boolean
   threshold?: number
   groupBy?: string
+  drillDownValue?: string
   sortBy?: string
   sortDir?: 'asc' | 'desc'
   page?: number
@@ -44,6 +46,9 @@ export interface ReportTableResult {
   countingUnit?: string
   dateFieldSemantics?: string
   verificationScope?: string
+  excludedMissingDateCount?: number
+  groupedBy?: string
+  drillDownValue?: string
   appliedFilters?: Record<string, string>
   summaryMetrics?: ReportSummaryMetric[]
   columns: ReportColumn[]

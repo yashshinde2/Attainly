@@ -311,7 +311,7 @@ export function AdminReportsWorkspace({
             <select
               id="rep-group"
               value={filters.groupBy ?? ''}
-              onChange={(e) => setFilters((f) => ({ ...f, groupBy: e.target.value || undefined }))}
+              onChange={(e) => setFilters((f) => ({ ...f, groupBy: e.target.value || undefined, drillDownValue: undefined }))}
               className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">Detailed Rows (No Grouping)</option>
@@ -320,6 +320,17 @@ export function AdminReportsWorkspace({
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={Boolean(filters.includeMissingActivityDates)}
+              onChange={(e) => setFilters((f) => ({ ...f, includeMissingActivityDates: e.target.checked }))}
+            />
+            Include records with missing actual activity dates (Provisional mode)
+          </label>
         </div>
 
         {/* Selectable Output Columns */}
@@ -388,11 +399,29 @@ export function AdminReportsWorkspace({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2">
+                {result.drillDownValue && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = { ...filters, drillDownValue: undefined, page: 1 }
+                      setFilters(next)
+                      executeReport(selectedType, next)
+                    }}
+                    className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground hover:bg-muted"
+                  >
+                    &larr; Back to Grouped View
+                  </button>
+                )}
                 <h2 className="text-lg font-semibold text-foreground">{result.title}</h2>
-                {result.verificationScope?.includes('provisional') && (
+                {(result.verificationScope?.includes('provisional') || result.verificationScope?.includes('Provisional')) && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
                     <ShieldAlert size={12} />
                     Includes Provisional / Unverified
+                  </span>
+                )}
+                {(result.excludedMissingDateCount ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                    {result.excludedMissingDateCount} excluded (missing activity date)
                   </span>
                 )}
               </div>
@@ -471,12 +500,28 @@ export function AdminReportsWorkspace({
                   </thead>
                   <tbody className="divide-y divide-border">
                     {result.rows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-muted/40">
+                      <tr
+                        key={idx}
+                        onClick={() => {
+                          if (result.groupedBy) {
+                            const val = String(row.groupValue ?? '')
+                            const next = { ...filters, groupBy: result.groupedBy, drillDownValue: val, page: 1 }
+                            setFilters(next)
+                            executeReport(selectedType, next)
+                          }
+                        }}
+                        className={result.groupedBy ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-muted/40'}
+                      >
                         {result.columns.map((c) => (
                           <td key={c.key} className="py-2.5 pr-4 text-foreground">
                             {String(row[c.key] ?? '—')}
                           </td>
                         ))}
+                        {result.groupedBy && (
+                          <td className="py-2.5 text-right text-[11px] font-semibold text-primary">
+                            Drill down &rarr;
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

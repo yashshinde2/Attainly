@@ -3,13 +3,13 @@ import { StudentNotificationsSection } from '@/components/student/notifications-
 import { DataRequestsPanel } from '@/components/shared/data-requests-panel'
 import { getCurrentPrincipal } from '@/lib/server/current-principal'
 import { getFacultyNotifications } from '@/lib/server/services/faculty-portfolio'
-import { listMyDataRequests } from '@/lib/server/services/data-requests'
+import { listMyDataRequestsWithOptions } from '@/lib/server/services/data-requests'
 
 export default async function FacultyNotificationsPage() {
   const principal = await getCurrentPrincipal()
-  const [notifications, dataRequests] = await Promise.all([
+  const [notifications, reqData] = await Promise.all([
     getFacultyNotifications(principal),
-    listMyDataRequests(principal),
+    listMyDataRequestsWithOptions(principal),
   ])
 
   return (
@@ -17,7 +17,11 @@ export default async function FacultyNotificationsPage() {
       portal="faculty"
       content={
         <>
-          <DataRequestsPanel requests={dataRequests} />
+          <DataRequestsPanel
+            requests={reqData.requests}
+            myDocuments={reqData.myDocuments}
+            myRecords={reqData.myRecords}
+          />
           <StudentNotificationsSection notifications={notifications} />
         </>
       }

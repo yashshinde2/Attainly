@@ -29,6 +29,7 @@ export interface PendingVerificationItem {
   submittedAt: Date
   details: string | null
   fileUrl: string | null
+  version: number
 }
 
 export async function listPendingForInstitution(input: {
@@ -134,6 +135,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: a.createdAt,
       details: `Category: ${a.category} | Status: ${a.status}${a.description ? ` | ${a.description}` : ''}`,
       fileUrl: null,
+      version: a.version,
     })
   }
 
@@ -148,6 +150,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: c.createdAt,
       details: c.issuer ? `Issuer: ${c.issuer}` : null,
       fileUrl: c.fileUrl,
+      version: c.version,
     })
   }
 
@@ -162,6 +165,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: r.createdAt,
       details: `Publication: ${r.publication ?? 'N/A'}${r.doi ? ` | DOI: ${r.doi}` : ''}`,
       fileUrl: r.fileUrl,
+      version: r.version,
     })
   }
 
@@ -176,6 +180,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: p.createdAt,
       details: `Patent #: ${p.patentNumber ?? 'N/A'} | Status: ${p.status ?? 'N/A'}`,
       fileUrl: p.fileUrl,
+      version: p.version,
     })
   }
 
@@ -190,6 +195,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: i.createdAt,
       details: `${i.offerType !== 'NONE' ? `Offer: ${i.offerType} | ` : ''}${i.description ?? ''}`,
       fileUrl: null,
+      version: i.version,
     })
   }
 
@@ -205,6 +211,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: fc.createdAt,
       details: fc.issuer ? `Issuer: ${fc.issuer}` : null,
       fileUrl: fc.fileUrl,
+      version: fc.version,
     })
   }
 
@@ -219,6 +226,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: fp.createdAt,
       details: `Publication: ${fp.publication ?? 'N/A'}${fp.doi ? ` | DOI: ${fp.doi}` : ''}`,
       fileUrl: fp.fileUrl,
+      version: fp.version,
     })
   }
 
@@ -233,6 +241,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: fpat.createdAt,
       details: `Patent #: ${fpat.patentNumber ?? 'N/A'} | Status: ${fpat.status ?? 'N/A'}`,
       fileUrl: fpat.fileUrl,
+      version: fpat.version,
     })
   }
 
@@ -247,6 +256,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: ffdp.createdAt,
       details: `${ffdp.organizer} (${ffdp.mode})`,
       fileUrl: ffdp.documentUrl,
+      version: ffdp.version,
     })
   }
 
@@ -261,6 +271,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: cpub.createdAt,
       details: [cpub.journalOrConference, cpub.indexing].filter(Boolean).join(' | ') || null,
       fileUrl: cpub.fileUrl,
+      version: cpub.version,
     })
   }
 
@@ -275,6 +286,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: fg.createdAt,
       details: `${fg.fundingAgency} (${fg.role})${fg.amount ? ` | ${fg.amount}` : ''}`,
       fileUrl: fg.documentUrl,
+      version: fg.version,
     })
   }
 
@@ -289,6 +301,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: fc.createdAt,
       details: `${fc.clientOrganization}${fc.amount ? ` | ${fc.amount}` : ''}`,
       fileUrl: fc.documentUrl,
+      version: fc.version,
     })
   }
 
@@ -303,6 +316,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: fcon.createdAt,
       details: `${fcon.contributionType}${fcon.organizationOrBody ? ` | ${fcon.organizationOrBody}` : ''}`,
       fileUrl: fcon.documentUrl,
+      version: fcon.version,
     })
   }
 
@@ -317,6 +331,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: po.createdAt,
       details: `Status: ${po.status}${po.packageCtc ? ` | CTC: ${po.packageCtc}` : ''}`,
       fileUrl: po.offerLetterUrl,
+      version: po.version,
     })
   }
 
@@ -331,6 +346,7 @@ export async function listPendingForInstitution(input: {
       submittedAt: go.updatedAt,
       details: `${go.organizationOrUniversity ?? ''}${go.programOrRole ? ` — ${go.programOrRole}` : ''}`.trim() || null,
       fileUrl: go.evidenceUrl,
+      version: go.version,
     })
   }
 
@@ -358,6 +374,7 @@ const statusInput = z.object({
   itemId: z.string().min(1),
   status: z.enum(['VERIFIED', 'REJECTED']),
   rejectionReason: z.string().trim().max(500).nullable().optional(),
+  expectedVersion: z.number().int().positive(),
 })
 
 /**
@@ -499,7 +516,7 @@ export async function setVerificationStatus(input: {
 }): Promise<void> {
   requirePermission(input.principal, 'record:verify')
   const { institutionId } = input.principal
-  const { itemType, itemId, status, rejectionReason } = statusInput.parse(input.data)
+  const { itemType, itemId, status, rejectionReason, expectedVersion } = statusInput.parse(input.data)
 
   const ownerUserId = await resolveOwnerUserId(institutionId, itemType, itemId)
   if (!ownerUserId) {
@@ -526,6 +543,7 @@ export async function setVerificationStatus(input: {
     rejectionReason,
   })
 
+  const updateWhere = { institutionId, id: itemId, version: expectedVersion }
   const updateData = {
     verificationStatus: status,
     verifiedByUserId: input.principal.userId,
@@ -534,63 +552,70 @@ export async function setVerificationStatus(input: {
     version: { increment: 1 },
   }
 
-  switch (itemType) {
-    case 'ACHIEVEMENT':
-      await prisma.achievement.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'CERTIFICATION':
-      await prisma.studentCertification.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'RESEARCH_PAPER':
-      await prisma.studentResearchPaper.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'PATENT':
-      await prisma.studentPatent.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'INTERNSHIP':
-      await prisma.studentInternship.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'FACULTY_CERTIFICATION':
-      await prisma.facultyCertification.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'FACULTY_RESEARCH_PAPER':
-      await prisma.facultyResearchPaper.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'FACULTY_PATENT':
-      await prisma.facultyPatent.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'FACULTY_FDP':
-      await prisma.facultyDevelopmentProgram.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'CANONICAL_PUBLICATION':
-      await prisma.canonicalPublication.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'FACULTY_GRANT':
-      await prisma.facultyResearchGrant.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'FACULTY_CONSULTANCY':
-      await prisma.facultyConsultancy.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'FACULTY_CONTRIBUTION':
-      await prisma.facultyContribution.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'PLACEMENT_OFFER':
-      await prisma.studentPlacementOffer.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-    case 'GRADUATE_OUTCOME':
-      await prisma.studentGraduateOutcome.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
-      break
-  }
+  await prisma.$transaction(async (tx) => {
+    let updatedCount = 0
+    switch (itemType) {
+      case 'ACHIEVEMENT':
+        updatedCount = (await tx.achievement.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'CERTIFICATION':
+        updatedCount = (await tx.studentCertification.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'RESEARCH_PAPER':
+        updatedCount = (await tx.studentResearchPaper.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'PATENT':
+        updatedCount = (await tx.studentPatent.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'INTERNSHIP':
+        updatedCount = (await tx.studentInternship.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'FACULTY_CERTIFICATION':
+        updatedCount = (await tx.facultyCertification.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'FACULTY_RESEARCH_PAPER':
+        updatedCount = (await tx.facultyResearchPaper.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'FACULTY_PATENT':
+        updatedCount = (await tx.facultyPatent.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'FACULTY_FDP':
+        updatedCount = (await tx.facultyDevelopmentProgram.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'CANONICAL_PUBLICATION':
+        updatedCount = (await tx.canonicalPublication.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'FACULTY_GRANT':
+        updatedCount = (await tx.facultyResearchGrant.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'FACULTY_CONSULTANCY':
+        updatedCount = (await tx.facultyConsultancy.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'FACULTY_CONTRIBUTION':
+        updatedCount = (await tx.facultyContribution.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'PLACEMENT_OFFER':
+        updatedCount = (await tx.studentPlacementOffer.updateMany({ where: updateWhere, data: updateData })).count
+        break
+      case 'GRADUATE_OUTCOME':
+        updatedCount = (await tx.studentGraduateOutcome.updateMany({ where: updateWhere, data: updateData })).count
+        break
+    }
 
-  await prisma.verificationAuditLog.create({
-    data: {
-      institutionId,
-      itemType,
-      itemId,
-      action: status,
-      actorUserId: input.principal.userId,
-      comment: normalizedReason,
-    },
+    if (updatedCount === 0) {
+      throw new Error('This record has changed since you opened it. Refresh and review the latest version.')
+    }
+
+    await tx.verificationAuditLog.create({
+      data: {
+        institutionId,
+        itemType,
+        itemId,
+        action: status,
+        actorUserId: input.principal.userId,
+        comment: normalizedReason,
+      },
+    })
   })
 }
 

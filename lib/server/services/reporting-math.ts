@@ -22,6 +22,43 @@ export function resolveActivityDateWithFlag(
   return { date: createdAt, isFallbackCreatedAt: true }
 }
 
+/**
+ * Official date filter:
+ * - When a date/academic-year window is active and `includeMissingActivityDates` is false,
+ *   records lacking an actual activity date are excluded (never silently substituted with createdAt).
+ * - When `includeMissingActivityDates` is true (provisional mode), createdAt is used and flagged.
+ */
+export function evaluateOfficialDateFilter(
+  primaryDate: Date | null | undefined,
+  createdAt: Date,
+  window: DateWindow | undefined,
+  includeMissingActivityDates: boolean,
+): { included: boolean; isMissingActivityDate: boolean; effectiveDate: Date } {
+  const isMissingActivityDate = !primaryDate
+  const effectiveDate = primaryDate ?? createdAt
+
+  if (!window) {
+    return { included: true, isMissingActivityDate, effectiveDate }
+  }
+  if (isMissingActivityDate && !includeMissingActivityDates) {
+    return { included: false, isMissingActivityDate: true, effectiveDate }
+  }
+  return {
+    included: isWithinDateWindow(effectiveDate, window),
+    isMissingActivityDate,
+    effectiveDate,
+  }
+}
+
+export function isHackathonAchievement(item: {
+  categoryCode?: string | null
+  subcategory?: string | null
+}): boolean {
+  if (item.categoryCode?.toUpperCase() === 'HACKATHON') return true
+  if (item.subcategory?.toLowerCase().includes('hackathon')) return true
+  return false
+}
+
 export function resolveEffectiveActivityDate(primaryDate: Date | null | undefined, createdAt: Date): Date {
   return primaryDate ?? createdAt
 }

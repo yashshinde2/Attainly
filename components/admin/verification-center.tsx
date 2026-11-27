@@ -76,6 +76,7 @@ function VerificationRow({
               <input type="hidden" name="itemId" value={item.id} />
               <input type="hidden" name="itemType" value={item.itemType} />
               <input type="hidden" name="status" value="VERIFIED" />
+              <input type="hidden" name="expectedVersion" value={item.version} />
               <button
                 type="submit"
                 disabled={approvePending || rejectPending}
@@ -122,6 +123,7 @@ function VerificationRow({
           <input type="hidden" name="itemId" value={item.id} />
           <input type="hidden" name="itemType" value={item.itemType} />
           <input type="hidden" name="status" value="REJECTED" />
+          <input type="hidden" name="expectedVersion" value={item.version} />
           <input
             type="text"
             name="rejectionReason"

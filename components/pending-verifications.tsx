@@ -9,9 +9,11 @@ const initialState: VerificationActionState = { status: 'idle', message: '' }
 function VerificationControls({
   itemId,
   itemType,
+  version,
 }: {
   itemId: string
   itemType: string
+  version: number
 }) {
   const [approveState, approveAction, approvePending] = useActionState(setVerificationStatusAction, initialState)
   const [rejectState, rejectAction, rejectPending] = useActionState(setVerificationStatusAction, initialState)
@@ -25,6 +27,7 @@ function VerificationControls({
           <input type="hidden" name="itemId" value={itemId} />
           <input type="hidden" name="itemType" value={itemType} />
           <input type="hidden" name="status" value="VERIFIED" />
+          <input type="hidden" name="expectedVersion" value={version} />
           <button
             type="submit"
             disabled={approvePending || rejectPending}
@@ -49,6 +52,7 @@ function VerificationControls({
           <input type="hidden" name="itemId" value={itemId} />
           <input type="hidden" name="itemType" value={itemType} />
           <input type="hidden" name="status" value="REJECTED" />
+          <input type="hidden" name="expectedVersion" value={version} />
           <input
             type="text"
             name="rejectionReason"
@@ -123,7 +127,7 @@ export function PendingVerifications({ items }: { items: PendingVerificationItem
               </a>
             )}
           </div>
-          <VerificationControls itemId={item.id} itemType={item.itemType} />
+          <VerificationControls itemId={item.id} itemType={item.itemType} version={item.version} />
         </div>
       ))}
     </div>
