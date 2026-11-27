@@ -5,29 +5,34 @@ import {
   computeEventParticipationMetrics,
   computePlacementMetrics,
   isWithinDateWindow,
+  resolveActivityDateWithFlag,
   resolveEffectiveActivityDate,
 } from '../lib/server/services/reporting-math'
 import { buildCsvContent, buildExcelXmlContent } from '../lib/report-types'
 import { buildZipBuffer } from '../lib/server/zip'
+import { buildNativeXlsxBuffer } from '../lib/server/xlsx-export'
 
-test('computePlacementMetrics distinguishes job offers from distinct placed students and respects verification scope', () => {
+test('computePlacementMetrics distinguishes offers received, students with offers, accepted offers, and confirmed placed students', () => {
   const offers = [
     { studentProfileId: 'stu-1', packageLpa: 12, offerStatus: 'ACCEPTED', verificationStatus: 'VERIFIED' },
     { studentProfileId: 'stu-1', packageLpa: 15, offerStatus: 'OFFERED', verificationStatus: 'VERIFIED' },
-    { studentProfileId: 'stu-2', packageLpa: 10, offerStatus: 'ACCEPTED', verificationStatus: 'VERIFIED' },
-    { studentProfileId: 'stu-3', packageLpa: 20, offerStatus: 'OFFERED', verificationStatus: 'PENDING' },
+    { studentProfileId: 'stu-2', packageLpa: 10, offerStatus: 'OFFERED', verificationStatus: 'VERIFIED' },
+    { studentProfileId: 'stu-3', packageLpa: 20, offerStatus: 'ACCEPTED', verificationStatus: 'PENDING' },
     { studentProfileId: 'stu-4', packageLpa: 8, offerStatus: 'DECLINED', verificationStatus: 'VERIFIED' },
   ]
 
   const verifiedOnly = computePlacementMetrics(offers, false)
-  assert.equal(verifiedOnly.totalOffers, 4)
-  assert.equal(verifiedOnly.distinctPlacedStudents, 2) // stu-1 and stu-2 (stu-4 declined, stu-3 pending)
+  assert.equal(verifiedOnly.offersReceived, 4)
+  assert.equal(verifiedOnly.studentsReceivingOffers, 2) // stu-1 and stu-2 (stu-4 declined, stu-3 pending)
+  assert.equal(verifiedOnly.acceptedOffers, 1) // only stu-1 ACCEPTED
+  assert.equal(verifiedOnly.confirmedPlacedStudents, 1) // stu-2 is OFFERED, not ACCEPTED!
   assert.equal(verifiedOnly.highestPackageLpa, 15)
 
   const withPending = computePlacementMetrics(offers, true)
-  assert.equal(withPending.totalOffers, 5)
-  assert.equal(withPending.distinctPlacedStudents, 3)
-  assert.equal(withPending.highestPackageLpa, 20)
+  assert.equal(withPending.offersReceived, 5)
+  assert.equal(withPending.studentsReceivingOffers, 3)
+  assert.equal(withPending.acceptedOffers, 2)
+  assert.equal(withPending.confirmedPlacedStudents, 1) // stu-3 is PENDING so not confirmed!
 })
 
 test('computeDistinctPublicationStats deduplicates co-authored publications by DOI', () => {
@@ -84,7 +89,7 @@ test('resolveEffectiveActivityDate prefers historical activity date over record 
   )
 })
 
-test('CSV, Excel XML, and ZIP archive builders produce valid non-empty outputs with metadata', () => {
+test('CSV, Excel XML, native XLSX, and ZIP archive builders produce valid non-empty outputs with metadata', async () => {
   const sampleReport = {
     entityType: 'PLACEMENTS' as const,
     title: 'Placements',
@@ -108,6 +113,12 @@ test('CSV, Excel XML, and ZIP archive builders produce valid non-empty outputs w
   assert.match(xls, /<Workbook/)
   assert.match(xls, /Metadata &amp; Audit/)
 
+  const xlsxBuf = await buildNativeXlsxBuffer(sampleReport)
+  assert.equal(xlsxBuf.readUInt32LE(0), 0x04034b50) // XLSX is a valid PKZIP archive
+
   const zip = buildZipBuffer([{ name: 'manifest.json', data: Buffer.from('{"ok":true}', 'utf8') }])
   assert.equal(zip.readUInt32LE(0), 0x04034b50) // PKZIP local file header signature
+
+  const flagged = resolveActivityDateWithFlag(null, new Date('2026-11-27T00:00:00Z'))
+  assert.equal(flagged.isFallbackCreatedAt, true)
 })

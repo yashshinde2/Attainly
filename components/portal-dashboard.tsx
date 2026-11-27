@@ -160,7 +160,7 @@ export function PortalDashboard({ portal, content }: { portal: Portal; content?:
               <Link
                 key={href}
                 href={href}
-                prefetch={true}
+                prefetch={false}
                 onClick={() => setMenuOpen(false)}
                 title={collapsed ? label : undefined}
                 aria-current={active ? 'page' : undefined}

@@ -60,14 +60,25 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const principal = await getCurrentPrincipal()
-    const pathname = request.nextUrl.searchParams.get('pathname')
-    if (!pathname) return NextResponse.json({ error: 'Missing document path.' }, { status: 400 })
+    const idParam = request.nextUrl.searchParams.get('id')
+    let pathname = request.nextUrl.searchParams.get('pathname')
 
-    // Resolve ownership from Document metadata or legacy path convention within active institution
-    const docRecord = await documentRepository.findByPathname({
-      institutionId: principal.institutionId,
-      pathname,
-    })
+    let docRecord = pathname
+      ? await documentRepository.findByPathname({
+          institutionId: principal.institutionId,
+          pathname,
+        })
+      : null
+
+    if (!pathname && idParam) {
+      const { prisma } = await import('@/lib/server/db')
+      docRecord = await prisma.document.findUnique({
+        where: { institutionId_id: { institutionId: principal.institutionId, id: idParam } },
+      })
+      pathname = docRecord?.pathname ?? null
+    }
+
+    if (!pathname) return NextResponse.json({ error: 'Missing document path.' }, { status: 400 })
 
     const docInstitutionId = docRecord?.institutionId ?? principal.institutionId
     const docOwnerUserId = docRecord?.ownerUserId ?? extractLegacyOwnerUserId(pathname, principal.institutionId)

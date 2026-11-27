@@ -757,22 +757,20 @@ export function UserManagement({
           <button
             type="button"
             onClick={() => setUserTab('single')}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-              userTab === 'single'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-secondary text-secondary-foreground hover:bg-muted'
-            }`}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${userTab === 'single'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'bg-secondary text-secondary-foreground hover:bg-muted'
+              }`}
           >
             <UserPlus size={13} /> Add Single User
           </button>
           <button
             type="button"
             onClick={() => setUserTab('bulk')}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-              userTab === 'bulk'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-secondary text-secondary-foreground hover:bg-muted'
-            }`}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${userTab === 'bulk'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'bg-secondary text-secondary-foreground hover:bg-muted'
+              }`}
           >
             <Users size={13} /> Bulk Import (CSV)
           </button>
@@ -1041,11 +1039,10 @@ export function UserManagement({
                     </td>
                     <td className="py-3.5 pr-4">
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          user.isActive
-                            ? 'bg-primary/10 text-primary'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${user.isActive
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-muted text-muted-foreground'
+                          }`}
                       >
                         {user.isActive ? 'Active' : 'Inactive'}
                       </span>
@@ -1077,11 +1074,10 @@ export function UserManagement({
                           type="button"
                           disabled={isTogglingStatus}
                           onClick={() => handleToggleActive(user)}
-                          className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
-                            user.isActive
-                              ? 'border-destructive/30 text-destructive hover:bg-destructive/10'
-                              : 'border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10'
-                          }`}
+                          className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${user.isActive
+                            ? 'border-destructive/30 text-destructive hover:bg-destructive/10'
+                            : 'border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10'
+                            }`}
                         >
                           {user.isActive ? 'Disable' : 'Enable'}
                         </button>
@@ -1316,11 +1312,10 @@ export function InstitutionSettingsManagement({
                   <td className="py-3 pr-4 text-xs font-medium text-foreground">{c.label}</td>
                   <td className="py-3 text-right">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        c.isCustom
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-secondary text-secondary-foreground'
-                      }`}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.isCustom
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-secondary text-secondary-foreground'
+                        }`}
                     >
                       {c.isCustom ? 'Custom' : 'Standard'}
                     </span>
@@ -1410,9 +1405,8 @@ export function InstitutionSettingsManagement({
                     </td>
                     <td className="py-3 text-right">
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          ay.isCurrent ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'
-                        }`}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ay.isCurrent ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'
+                          }`}
                       >
                         {ay.isCurrent ? 'Current' : 'Archived'}
                       </span>

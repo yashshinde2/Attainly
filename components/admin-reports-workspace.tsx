@@ -130,16 +130,34 @@ export function AdminReportsWorkspace({
     URL.revokeObjectURL(url)
   }
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     if (!result) return
-    const xml = buildExcelXmlContent(result)
-    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `attainly-${result.entityType.toLowerCase()}.xls`
-    a.click()
-    URL.revokeObjectURL(url)
+    setErrorMsg('')
+    try {
+      const res = await fetch('/api/reports/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: selectedType, filters }),
+      })
+      if (!res.ok) throw new Error('XLSX export failed.')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `attainly-${result.entityType.toLowerCase()}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // Fallback to SpreadsheetML if needed
+      const xml = buildExcelXmlContent(result)
+      const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `attainly-${result.entityType.toLowerCase()}.xls`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
   }
 
   const handleDownloadPdf = async () => {
@@ -398,7 +416,7 @@ export function AdminReportsWorkspace({
                 className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted"
               >
                 <FileSpreadsheet size={13} />
-                Excel (.xls)
+                Excel (.xlsx)
               </button>
               <button
                 type="button"

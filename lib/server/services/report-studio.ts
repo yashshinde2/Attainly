@@ -10,6 +10,7 @@ import {
   computeEventParticipationMetrics,
   computePlacementMetrics,
   isWithinDateWindow,
+  resolveActivityDateWithFlag,
   resolveEffectiveActivityDate,
   type DateWindow,
 } from './reporting-math'
@@ -228,22 +229,29 @@ export async function runStudioReport(
         isWithinDateWindow(resolveEffectiveActivityDate(r.awardedAt, r.createdAt), dateWindow),
       )
       const uniqueStudents = new Set(dateFiltered.map((r) => r.studentProfileId)).size
+      const missingDateCount = dateFiltered.filter((r) => !r.awardedAt).length
       summaryMetrics = [
         { label: 'Activity Records', value: dateFiltered.length },
         { label: 'Unique Students', value: uniqueStudents },
+        ...(missingDateCount > 0 ? [{ label: 'Missing Activity Date (Fallback)', value: missingDateCount }] : []),
       ]
-      rawRows = dateFiltered.map((r) => ({
-        title: r.title,
-        studentName: `${r.studentProfile.user.firstName} ${r.studentProfile.user.lastName}`,
-        enrollmentNumber: r.studentProfile.enrollmentNumber ?? '—',
-        departmentCode: r.studentProfile.department?.code ?? 'Unassigned',
-        category: r.categoryCode ?? r.category,
-        teamName: r.teamName ?? 'Individual',
-        participationLevel: r.participationLevel ?? '—',
-        status: r.status,
-        activityDate: resolveEffectiveActivityDate(r.awardedAt, r.createdAt).toISOString().slice(0, 10),
-        verificationStatus: r.verificationStatus,
-      }))
+      rawRows = dateFiltered.map((r) => {
+        const resolved = resolveActivityDateWithFlag(r.awardedAt, r.createdAt)
+        return {
+          title: r.title,
+          studentName: `${r.studentProfile.user.firstName} ${r.studentProfile.user.lastName}`,
+          enrollmentNumber: r.studentProfile.enrollmentNumber ?? '—',
+          departmentCode: r.studentProfile.department?.code ?? 'Unassigned',
+          category: r.categoryCode ?? r.category,
+          teamName: r.teamName ?? 'Individual',
+          participationLevel: r.participationLevel ?? '—',
+          status: r.status,
+          activityDate: resolved.isFallbackCreatedAt
+            ? `${resolved.date.toISOString().slice(0, 10)} (fallback)`
+            : resolved.date.toISOString().slice(0, 10),
+          verificationStatus: r.verificationStatus,
+        }
+      })
       break
     }
 
@@ -378,10 +386,10 @@ export async function runStudioReport(
         true,
       )
       summaryMetrics = [
-        { label: 'Total Job Offers', value: metrics.totalOffers },
-        { label: 'Unique Placed Students', value: metrics.distinctPlacedStudents },
-        { label: 'Highest Package (LPA)', value: metrics.highestPackageLpa },
-        { label: 'Avg Package (LPA)', value: metrics.averagePackageLpa },
+        { label: 'Offers Received', value: metrics.offersReceived },
+        { label: 'Students with Offers', value: metrics.studentsReceivingOffers },
+        { label: 'Accepted Offers', value: metrics.acceptedOffers },
+        { label: 'Confirmed Placed Students', value: metrics.confirmedPlacedStudents },
       ]
       rawRows = filtered.map((r) => ({
         studentName: `${r.studentProfile.user.firstName} ${r.studentProfile.user.lastName}`,
@@ -493,7 +501,13 @@ export async function runStudioReport(
     case 'RESEARCH_PUBLICATIONS': {
       const [canonical, facultyPapers] = await Promise.all([
         prisma.canonicalPublication.findMany({
-          where: { institutionId, ...verificationWhere },
+          where: {
+            institutionId,
+            ...verificationWhere,
+            ...(deptScopeFilter
+              ? { contributors: { some: { facultyProfile: { departmentId: deptScopeFilter } } } }
+              : {}),
+          },
           include: { _count: { select: { contributors: true } } },
         }),
         prisma.facultyResearchPaper.findMany({

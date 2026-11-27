@@ -46,7 +46,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
-          {process.env.NODE_ENV === 'production' && <Analytics />}
+          {process.env.VERCEL === '1' && <Analytics />}
         </ThemeProvider>
       </body>
     </html>

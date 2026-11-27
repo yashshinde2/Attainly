@@ -20,18 +20,18 @@ function getPrismaClient(): PrismaClient {
     globalForPrisma.attainlyPool ??
     new Pool({
       connectionString,
-      max: 10,
+      max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     })
 
-  if (process.env.NODE_ENV !== 'production') globalForPrisma.attainlyPool = pool
+  globalForPrisma.attainlyPool = pool
 
   const client = new PrismaClient({
     adapter: new PrismaPg(pool),
   })
 
-  if (process.env.NODE_ENV !== 'production') globalForPrisma.attainlyPrisma = client
+  globalForPrisma.attainlyPrisma = client
   return client
 }
 

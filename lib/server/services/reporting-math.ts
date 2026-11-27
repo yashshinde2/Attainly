@@ -3,10 +3,25 @@ export interface DateWindow {
   to?: Date
 }
 
+export interface ActivityDateResolution {
+  date: Date
+  isFallbackCreatedAt: boolean
+}
+
 /**
- * Resolves the effective activity date for reporting: prefers the actual activity/award/event date
- * over the database record creation timestamp.
+ * Resolves the effective activity date for reporting and flags when the primary
+ * activity/award/event date is missing and createdAt was used as a fallback.
  */
+export function resolveActivityDateWithFlag(
+  primaryDate: Date | null | undefined,
+  createdAt: Date,
+): ActivityDateResolution {
+  if (primaryDate) {
+    return { date: primaryDate, isFallbackCreatedAt: false }
+  }
+  return { date: createdAt, isFallbackCreatedAt: true }
+}
+
 export function resolveEffectiveActivityDate(primaryDate: Date | null | undefined, createdAt: Date): Date {
   return primaryDate ?? createdAt
 }
@@ -21,10 +36,14 @@ export function isWithinDateWindow(date: Date, window?: DateWindow): boolean {
 export interface PlacementOfferMetricRow {
   studentProfileId: string
   packageLpa: number | null
-  offerStatus: string
+  offerStatus: string // 'OFFERED' | 'ACCEPTED' | 'DECLINED'
   verificationStatus: string
 }
 
+/**
+ * Separates total offers received, students receiving offers, accepted offers,
+ * and confirmed placements (accepted + verified). Never treats OFFERED as confirmed placement.
+ */
 export function computePlacementMetrics(
   offers: PlacementOfferMetricRow[],
   includeUnverified: boolean,
@@ -33,12 +52,21 @@ export function computePlacementMetrics(
     ? offers
     : offers.filter((o) => o.verificationStatus === 'VERIFIED')
 
-  const totalOffers = scoped.length
-  const distinctPlacedStudents = new Set(
-    scoped
-      .filter((o) => o.offerStatus !== 'DECLINED')
+  const offersReceived = scoped.length
+  const studentsReceivingOffers = new Set(
+    scoped.filter((o) => o.offerStatus !== 'DECLINED').map((o) => o.studentProfileId),
+  ).size
+  const acceptedRows = scoped.filter((o) => o.offerStatus === 'ACCEPTED')
+  const acceptedOffers = acceptedRows.length
+  const confirmedPlacedStudents = new Set(
+    acceptedRows
+      .filter((o) => o.verificationStatus === 'VERIFIED')
       .map((o) => o.studentProfileId),
   ).size
+
+  // Backwards-compatible alias for distinctPlacedStudents -> confirmedPlacedStudents
+  const distinctPlacedStudents = confirmedPlacedStudents
+
   const packages = scoped
     .map((o) => o.packageLpa)
     .filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0)
@@ -50,7 +78,11 @@ export function computePlacementMetrics(
       : 0
 
   return {
-    totalOffers,
+    offersReceived,
+    totalOffers: offersReceived,
+    studentsReceivingOffers,
+    acceptedOffers,
+    confirmedPlacedStudents,
     distinctPlacedStudents,
     highestPackageLpa,
     averagePackageLpa,
