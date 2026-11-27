@@ -38,6 +38,26 @@ const addCriterionSchema = z.object({
   label: z.string().trim().min(2).max(200),
 })
 
+export async function getInstitutionBranding(
+  principal: AuthenticatedPrincipal,
+): Promise<{ name: string; logoUrl: string | null }> {
+  const { institutionId } = principal
+  const [institution, logoTag] = await Promise.all([
+    prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { name: true },
+    }),
+    prisma.criterionTag.findFirst({
+      where: { institutionId, itemType: 'INSTITUTION_SETTING', itemId: 'LOGO_URL' },
+      select: { criterionCode: true },
+    }),
+  ])
+  return {
+    name: institution?.name ?? 'Attainly Institution',
+    logoUrl: logoTag?.criterionCode ?? null,
+  }
+}
+
 export async function getInstitutionSettings(input: {
   principal: AuthenticatedPrincipal
 }): Promise<InstitutionSettingsData> {
