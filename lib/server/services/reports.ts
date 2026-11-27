@@ -219,6 +219,7 @@ export async function certificationResearchPatentStats(input: {
     sPatents,
     fCerts,
     fPapers,
+    fCanonicalPubs,
     fPatents,
   ] = await Promise.all([
     prisma.studentProfile.findMany({
@@ -254,6 +255,13 @@ export async function certificationResearchPatentStats(input: {
     hasStudentFilter
       ? Promise.resolve([])
       : prisma.facultyResearchPaper.groupBy({
+          by: ['verificationStatus'],
+          where: { institutionId, ...verificationFilter, ...dateFilter },
+          _count: { _all: true },
+        }),
+    hasStudentFilter
+      ? Promise.resolve([])
+      : prisma.canonicalPublication.groupBy({
           by: ['verificationStatus'],
           where: { institutionId, ...verificationFilter, ...dateFilter },
           _count: { _all: true },
@@ -317,7 +325,10 @@ export async function certificationResearchPatentStats(input: {
     addRow('Faculty Certification', 'Faculty', 'N/A', row.verificationStatus, row._count._all)
   }
   for (const row of fPapers) {
-    addRow('Faculty Research Paper', 'Faculty', 'N/A', row.verificationStatus, row._count._all)
+    addRow('Faculty Research Paper (Legacy)', 'Faculty', 'N/A', row.verificationStatus, row._count._all)
+  }
+  for (const row of fCanonicalPubs) {
+    addRow('Faculty Canonical Publication', 'Faculty', 'N/A', row.verificationStatus, row._count._all)
   }
   for (const row of fPatents) {
     addRow('Faculty Patent', 'Faculty', 'N/A', row.verificationStatus, row._count._all)
@@ -400,7 +411,28 @@ export async function verificationQueueAging(input: {
     ),
   ])
 
-  return [...batch1, ...batch2]
+  const batch3 = await Promise.all([
+    summarizePending('FACULTY_FDP', 'Faculty Professional Development', () =>
+      prisma.facultyDevelopmentProgram.findMany({ where: pendingWhere, select: { createdAt: true } }),
+    ),
+    summarizePending('CANONICAL_PUBLICATION', 'Faculty Canonical Publications', () =>
+      prisma.canonicalPublication.findMany({ where: pendingWhere, select: { createdAt: true } }),
+    ),
+    summarizePending('FACULTY_GRANT', 'Faculty Research Grants', () =>
+      prisma.facultyResearchGrant.findMany({ where: pendingWhere, select: { createdAt: true } }),
+    ),
+    summarizePending('FACULTY_CONSULTANCY', 'Faculty Consultancy', () =>
+      prisma.facultyConsultancy.findMany({ where: pendingWhere, select: { createdAt: true } }),
+    ),
+  ])
+
+  const batch4 = await Promise.all([
+    summarizePending('FACULTY_CONTRIBUTION', 'Faculty Contributions', () =>
+      prisma.facultyContribution.findMany({ where: pendingWhere, select: { createdAt: true } }),
+    ),
+  ])
+
+  return [...batch1, ...batch2, ...batch3, ...batch4]
 }
 
 export async function profileCompletenessLaggards(input: {
@@ -632,6 +664,36 @@ export async function criterionCoverageReport(input: {
     ),
     fetchVerifiedIds('FACULTY_PATENT', (ids) =>
       prisma.facultyPatent.findMany({
+        where: { institutionId, id: { in: ids }, ...(includeUnverified ? {} : { verificationStatus: 'VERIFIED' }) },
+        select: { id: true },
+      }),
+    ),
+    fetchVerifiedIds('FACULTY_FDP', (ids) =>
+      prisma.facultyDevelopmentProgram.findMany({
+        where: { institutionId, id: { in: ids }, ...(includeUnverified ? {} : { verificationStatus: 'VERIFIED' }) },
+        select: { id: true },
+      }),
+    ),
+    fetchVerifiedIds('CANONICAL_PUBLICATION', (ids) =>
+      prisma.canonicalPublication.findMany({
+        where: { institutionId, id: { in: ids }, ...(includeUnverified ? {} : { verificationStatus: 'VERIFIED' }) },
+        select: { id: true },
+      }),
+    ),
+    fetchVerifiedIds('FACULTY_GRANT', (ids) =>
+      prisma.facultyResearchGrant.findMany({
+        where: { institutionId, id: { in: ids }, ...(includeUnverified ? {} : { verificationStatus: 'VERIFIED' }) },
+        select: { id: true },
+      }),
+    ),
+    fetchVerifiedIds('FACULTY_CONSULTANCY', (ids) =>
+      prisma.facultyConsultancy.findMany({
+        where: { institutionId, id: { in: ids }, ...(includeUnverified ? {} : { verificationStatus: 'VERIFIED' }) },
+        select: { id: true },
+      }),
+    ),
+    fetchVerifiedIds('FACULTY_CONTRIBUTION', (ids) =>
+      prisma.facultyContribution.findMany({
         where: { institutionId, id: { in: ids }, ...(includeUnverified ? {} : { verificationStatus: 'VERIFIED' }) },
         select: { id: true },
       }),

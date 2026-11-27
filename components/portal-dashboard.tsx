@@ -53,12 +53,21 @@ const portalConfig = {
   faculty: {
     label: 'Faculty portal',
     heading: 'Your faculty workspace',
-    description: 'A starting point for teaching, research, and student support.',
+    description: 'Academic portfolio, teaching workload, research publications, consultancy, and CV builder.',
     icon: BookOpen,
     links: [
       ['Overview', '/faculty', LayoutDashboard],
-      ['Courses', '/faculty/courses', BookOpen],
+      ['My Profile', '/faculty/profile', UserCircle],
+      ['Qualifications', '/faculty/qualifications', GraduationCap],
+      ['Experience & Teaching', '/faculty/experience', Layers],
+      ['Professional Development', '/faculty/development', FileBadge],
+      ['Research & Innovation', '/faculty/research', FlaskConical],
+      ['Consultancy', '/faculty/consultancy', Briefcase],
+      ['Contributions', '/faculty/contributions', Award],
       ['Events', '/faculty/events', CalendarDays],
+      ['My Documents', '/faculty/documents', FolderOpen],
+      ['Academic CV', '/faculty/cv', FileText],
+      ['Notifications', '/faculty/notifications', Bell],
     ],
   },
   admin: {

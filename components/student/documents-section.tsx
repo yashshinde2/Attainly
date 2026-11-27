@@ -13,12 +13,14 @@ export function StudentDocumentsSection({
   page,
   pageSize,
   initialQuery = '',
+  basePath = '/student/documents',
 }: {
   items: Document[]
   total: number
   page: number
   pageSize: number
   initialQuery?: string
+  basePath?: string
 }) {
   const router = useRouter()
   const [query, setQuery] = useState(initialQuery)
@@ -58,7 +60,7 @@ export function StudentDocumentsSection({
       />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <form action="/student/documents" method="GET" className="flex flex-1 min-w-[220px] max-w-md items-center gap-2">
+        <form action={basePath} method="GET" className="flex flex-1 min-w-[220px] max-w-md items-center gap-2">
           <div className="relative flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -138,7 +140,7 @@ export function StudentDocumentsSection({
           <div className="flex gap-2">
             {page > 1 && (
               <Link
-                href={`/student/documents?page=${page - 1}${initialQuery ? `&q=${encodeURIComponent(initialQuery)}` : ''}`}
+                href={`${basePath}?page=${page - 1}${initialQuery ? `&q=${encodeURIComponent(initialQuery)}` : ''}`}
                 className="rounded-lg border border-border px-3 py-1.5 font-medium hover:bg-muted"
               >
                 Previous
@@ -146,7 +148,7 @@ export function StudentDocumentsSection({
             )}
             {page < totalPages && (
               <Link
-                href={`/student/documents?page=${page + 1}${initialQuery ? `&q=${encodeURIComponent(initialQuery)}` : ''}`}
+                href={`${basePath}?page=${page + 1}${initialQuery ? `&q=${encodeURIComponent(initialQuery)}` : ''}`}
                 className="rounded-lg border border-border px-3 py-1.5 font-medium hover:bg-muted"
               >
                 Next

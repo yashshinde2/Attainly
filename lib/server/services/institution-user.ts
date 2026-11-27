@@ -78,6 +78,8 @@ const facultyIdentitySchema = z.object({
   departmentId: z.string().trim().nullable().optional(),
   designation: z.string().trim().max(120).nullable().optional(),
   employmentStatus: z.enum(['ACTIVE', 'ON_LEAVE', 'VISITING', 'INACTIVE']).default('ACTIVE'),
+  employmentType: z.string().trim().max(60).nullable().optional(),
+  joiningDate: z.coerce.date().nullable().optional(),
 })
 
 export async function updateStudentInstitutionalIdentity(input: {
@@ -208,12 +210,16 @@ export async function updateFacultyInstitutionalIdentity(input: {
         departmentId,
         designation,
         employmentStatus: data.employmentStatus,
+        employmentType: data.employmentType?.trim() || null,
+        joiningDate: data.joiningDate ?? null,
       },
       update: {
         employeeId,
         departmentId,
         designation,
         employmentStatus: data.employmentStatus,
+        employmentType: data.employmentType?.trim() || null,
+        joiningDate: data.joiningDate ?? null,
       },
     })
   } catch (error: unknown) {

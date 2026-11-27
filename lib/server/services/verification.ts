@@ -14,6 +14,11 @@ export interface PendingVerificationItem {
     | 'FACULTY_CERTIFICATION'
     | 'FACULTY_RESEARCH_PAPER'
     | 'FACULTY_PATENT'
+    | 'FACULTY_FDP'
+    | 'CANONICAL_PUBLICATION'
+    | 'FACULTY_GRANT'
+    | 'FACULTY_CONSULTANCY'
+    | 'FACULTY_CONTRIBUTION'
     | 'PLACEMENT_OFFER'
     | 'GRADUATE_OUTCOME'
   title: string
@@ -40,6 +45,11 @@ export async function listPendingForInstitution(input: {
     facultyCertifications,
     facultyPapers,
     facultyPatents,
+    facultyFdps,
+    canonicalPubs,
+    facultyGrants,
+    facultyConsultancies,
+    facultyContributions,
     placementOffers,
     graduateOutcomes,
   ] = await Promise.all([
@@ -79,6 +89,30 @@ export async function listPendingForInstitution(input: {
       orderBy: { createdAt: 'desc' },
     }),
     prisma.facultyPatent.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { facultyProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.facultyDevelopmentProgram.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { facultyProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.canonicalPublication.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.facultyResearchGrant.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { facultyProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.facultyConsultancy.findMany({
+      where: { institutionId, verificationStatus: 'PENDING' },
+      include: { facultyProfile: { include: { user: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.facultyContribution.findMany({
       where: { institutionId, verificationStatus: 'PENDING' },
       include: { facultyProfile: { include: { user: true } } },
       orderBy: { createdAt: 'desc' },
@@ -210,6 +244,76 @@ export async function listPendingForInstitution(input: {
     })
   }
 
+  for (const ffdp of facultyFdps) {
+    items.push({
+      id: ffdp.id,
+      itemType: 'FACULTY_FDP',
+      title: `${ffdp.programType}: ${ffdp.title}`,
+      studentName: `Faculty: ${ffdp.facultyProfile.user.firstName} ${ffdp.facultyProfile.user.lastName}`.trim(),
+      studentEmail: ffdp.facultyProfile.user.email,
+      enrollmentNumber: ffdp.facultyProfile.employeeId ?? null,
+      submittedAt: ffdp.createdAt,
+      details: `${ffdp.organizer} (${ffdp.mode})`,
+      fileUrl: ffdp.documentUrl,
+    })
+  }
+
+  for (const cpub of canonicalPubs) {
+    items.push({
+      id: cpub.id,
+      itemType: 'CANONICAL_PUBLICATION',
+      title: cpub.title,
+      studentName: `Faculty Publication (${cpub.publicationType})`,
+      studentEmail: cpub.authorsText ?? 'Institutional contributor',
+      enrollmentNumber: cpub.doi ? `DOI: ${cpub.doi}` : null,
+      submittedAt: cpub.createdAt,
+      details: [cpub.journalOrConference, cpub.indexing].filter(Boolean).join(' | ') || null,
+      fileUrl: cpub.fileUrl,
+    })
+  }
+
+  for (const fg of facultyGrants) {
+    items.push({
+      id: fg.id,
+      itemType: 'FACULTY_GRANT',
+      title: fg.title,
+      studentName: `Faculty: ${fg.facultyProfile.user.firstName} ${fg.facultyProfile.user.lastName}`.trim(),
+      studentEmail: fg.facultyProfile.user.email,
+      enrollmentNumber: fg.facultyProfile.employeeId ?? null,
+      submittedAt: fg.createdAt,
+      details: `${fg.fundingAgency} (${fg.role})${fg.amount ? ` | ${fg.amount}` : ''}`,
+      fileUrl: fg.documentUrl,
+    })
+  }
+
+  for (const fc of facultyConsultancies) {
+    items.push({
+      id: fc.id,
+      itemType: 'FACULTY_CONSULTANCY',
+      title: fc.title,
+      studentName: `Faculty: ${fc.facultyProfile.user.firstName} ${fc.facultyProfile.user.lastName}`.trim(),
+      studentEmail: fc.facultyProfile.user.email,
+      enrollmentNumber: fc.facultyProfile.employeeId ?? null,
+      submittedAt: fc.createdAt,
+      details: `${fc.clientOrganization}${fc.amount ? ` | ${fc.amount}` : ''}`,
+      fileUrl: fc.documentUrl,
+    })
+  }
+
+  for (const fcon of facultyContributions) {
+    items.push({
+      id: fcon.id,
+      itemType: 'FACULTY_CONTRIBUTION',
+      title: fcon.title,
+      studentName: `Faculty: ${fcon.facultyProfile.user.firstName} ${fcon.facultyProfile.user.lastName}`.trim(),
+      studentEmail: fcon.facultyProfile.user.email,
+      enrollmentNumber: fcon.facultyProfile.employeeId ?? null,
+      submittedAt: fcon.createdAt,
+      details: `${fcon.contributionType}${fcon.organizationOrBody ? ` | ${fcon.organizationOrBody}` : ''}`,
+      fileUrl: fcon.documentUrl,
+    })
+  }
+
   for (const po of placementOffers) {
     items.push({
       id: po.id,
@@ -251,6 +355,11 @@ const statusInput = z.object({
     'FACULTY_CERTIFICATION',
     'FACULTY_RESEARCH_PAPER',
     'FACULTY_PATENT',
+    'FACULTY_FDP',
+    'CANONICAL_PUBLICATION',
+    'FACULTY_GRANT',
+    'FACULTY_CONSULTANCY',
+    'FACULTY_CONTRIBUTION',
     'PLACEMENT_OFFER',
     'GRADUATE_OUTCOME',
   ]),
@@ -340,6 +449,41 @@ async function resolveOwnerUserId(
       })
       return r?.facultyProfile.userId ?? null
     }
+    case 'FACULTY_FDP': {
+      const r = await prisma.facultyDevelopmentProgram.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { facultyProfile: { select: { userId: true } } },
+      })
+      return r?.facultyProfile.userId ?? null
+    }
+    case 'CANONICAL_PUBLICATION': {
+      const r = await prisma.canonicalPublication.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { createdByUserId: true },
+      })
+      return r?.createdByUserId ?? null
+    }
+    case 'FACULTY_GRANT': {
+      const r = await prisma.facultyResearchGrant.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { facultyProfile: { select: { userId: true } } },
+      })
+      return r?.facultyProfile.userId ?? null
+    }
+    case 'FACULTY_CONSULTANCY': {
+      const r = await prisma.facultyConsultancy.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { facultyProfile: { select: { userId: true } } },
+      })
+      return r?.facultyProfile.userId ?? null
+    }
+    case 'FACULTY_CONTRIBUTION': {
+      const r = await prisma.facultyContribution.findUnique({
+        where: { institutionId_id: { institutionId, id: itemId } },
+        select: { facultyProfile: { select: { userId: true } } },
+      })
+      return r?.facultyProfile.userId ?? null
+    }
     case 'PLACEMENT_OFFER': {
       const r = await prisma.studentPlacementOffer.findUnique({
         where: { institutionId_id: { institutionId, id: itemId } },
@@ -409,6 +553,21 @@ export async function setVerificationStatus(input: {
       break
     case 'FACULTY_PATENT':
       await prisma.facultyPatent.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
+      break
+    case 'FACULTY_FDP':
+      await prisma.facultyDevelopmentProgram.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
+      break
+    case 'CANONICAL_PUBLICATION':
+      await prisma.canonicalPublication.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
+      break
+    case 'FACULTY_GRANT':
+      await prisma.facultyResearchGrant.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
+      break
+    case 'FACULTY_CONSULTANCY':
+      await prisma.facultyConsultancy.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
+      break
+    case 'FACULTY_CONTRIBUTION':
+      await prisma.facultyContribution.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })
       break
     case 'PLACEMENT_OFFER':
       await prisma.studentPlacementOffer.update({ where: { institutionId_id: { institutionId, id: itemId } }, data: updateData })

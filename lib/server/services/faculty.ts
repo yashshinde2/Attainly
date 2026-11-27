@@ -14,9 +14,14 @@ function checkPerm(principal: AuthenticatedPrincipal, specific: string, fallback
 const profileInput = z.object({
   phone: z.string().trim().max(40).nullable().optional(),
   office: z.string().trim().max(120).nullable().optional(),
+  specialization: z.string().trim().max(250).nullable().optional(),
+  bio: z.string().trim().max(1500).nullable().optional(),
   photoUrl: z.string().trim().max(2000).nullable().optional(),
   linkedinUrl: z.string().trim().max(2000).nullable().optional(),
   researchGateOrOrcidUrl: z.string().trim().max(2000).nullable().optional(),
+  orcidId: z.string().trim().max(80).nullable().optional(),
+  googleScholarUrl: z.string().trim().max(2000).nullable().optional(),
+  scopusAuthorId: z.string().trim().max(80).nullable().optional(),
 })
 
 export type FacultyProfileInput = z.infer<typeof profileInput>

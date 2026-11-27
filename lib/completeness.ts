@@ -17,11 +17,18 @@ export interface StudentCompletenessInput {
 
 export interface FacultyCompletenessInput {
   hasPersonalInfo: boolean
+  hasInstitutionalIdentity?: boolean
   educationCount: number
   experienceCount: number
   certificationCount: number
   researchPaperCount: number
   patentCount: number
+  fdpCount?: number
+  teachingLoadCount?: number
+  canonicalPublicationCount?: number
+  grantCount?: number
+  consultancyCount?: number
+  contributionCount?: number
 }
 
 export interface CompletenessSectionItem {
@@ -127,12 +134,29 @@ export function calculateStudentCompleteness(input: StudentCompletenessInput): C
  * Computes faculty profile completeness percentage across 5 core sections.
  */
 export function calculateFacultyCompleteness(input: FacultyCompletenessInput): CompletenessResult {
+  const mandatoryItems: CompletenessSectionItem[] = [
+    { label: 'Personal & Academic Profiles', complete: input.hasPersonalInfo, href: '/faculty/profile' },
+    { label: 'Institutional Identity', complete: input.hasInstitutionalIdentity ?? input.hasPersonalInfo, href: '/faculty/profile' },
+    { label: 'Qualifications', complete: input.educationCount > 0, href: '/faculty/qualifications' },
+    { label: 'Experience & Teaching', complete: input.experienceCount > 0 || (input.teachingLoadCount ?? 0) > 0, href: '/faculty/experience' },
+  ]
+
+  const optionalItems: CompletenessSectionItem[] = [
+    { label: 'Professional Development (FDP/Certs)', complete: input.certificationCount > 0 || (input.fdpCount ?? 0) > 0, href: '/faculty/development' },
+    { label: 'Research, Grants & Patents', complete: input.researchPaperCount > 0 || (input.canonicalPublicationCount ?? 0) > 0 || input.patentCount > 0 || (input.grantCount ?? 0) > 0, href: '/faculty/research' },
+    { label: 'Consultancy', complete: (input.consultancyCount ?? 0) > 0, href: '/faculty/consultancy' },
+    { label: 'Academic & Institutional Contributions', complete: (input.contributionCount ?? 0) > 0, href: '/faculty/contributions' },
+  ]
+
+  const mandatory = buildGroup(mandatoryItems)
+  const optional = buildGroup(optionalItems)
+
   const sections: Array<{ label: string; complete: boolean }> = [
     { label: 'Personal & Contact Info', complete: input.hasPersonalInfo },
     { label: 'Education', complete: input.educationCount > 0 },
     { label: 'Experience', complete: input.experienceCount > 0 },
-    { label: 'Certifications', complete: input.certificationCount > 0 },
-    { label: 'Research or Patents', complete: input.researchPaperCount > 0 || input.patentCount > 0 },
+    { label: 'Certifications', complete: input.certificationCount > 0 || (input.fdpCount ?? 0) > 0 },
+    { label: 'Research or Patents', complete: input.researchPaperCount > 0 || (input.canonicalPublicationCount ?? 0) > 0 || input.patentCount > 0 },
   ]
 
   const completedSections = sections.filter((s) => s.complete).length
@@ -145,5 +169,7 @@ export function calculateFacultyCompleteness(input: FacultyCompletenessInput): C
     completedSections,
     totalSections,
     missingSections,
+    mandatory,
+    optional,
   }
 }
