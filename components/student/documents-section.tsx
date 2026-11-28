@@ -162,11 +162,10 @@ export function StudentDocumentsSection({
             key={kind}
             type="button"
             onClick={() => setMimeFilter(kind)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-              mimeFilter === kind
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:text-foreground'
-            }`}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mimeFilter === kind
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:text-foreground'
+              }`}
           >
             {kind === 'ALL' ? 'All Files' : kind === 'PDF' ? 'PDF Documents' : 'Images'}
           </button>
