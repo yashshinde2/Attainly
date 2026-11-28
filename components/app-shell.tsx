@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Command,
   FileBadge,
+  FileSpreadsheet,
   FileText,
   FlaskConical,
   FolderOpen,
@@ -66,6 +67,7 @@ const ICON_MAP: Record<NavItemConfig['iconKey'], LucideIcon> = {
   courses: Layers,
   reports: BarChart3,
   inspections: FileBadge,
+  imports: FileSpreadsheet,
   people: ShieldCheck,
   settings: Settings2,
 }

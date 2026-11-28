@@ -30,6 +30,7 @@ export interface NavItemConfig {
     | 'courses'
     | 'reports'
     | 'inspections'
+    | 'imports'
     | 'people'
     | 'settings'
   /** Any-of permission check. If omitted, visible to all users in this portal. */
@@ -145,6 +146,7 @@ const PORTAL_NAV_GROUPS: Record<PortalType, NavGroupConfig[]> = {
         { label: 'Reports', href: '/admin/reports', iconKey: 'reports', requiredAnyPermissions: ['report:view'] },
         { label: 'Document Vault', href: '/admin/documents', iconKey: 'documents', requiredAnyPermissions: ['report:view', 'record:verify'] },
         { label: 'Inspections', href: '/admin/inspections', iconKey: 'inspections', requiredAnyPermissions: ['report:view'] },
+        { label: 'Bulk Import', href: '/admin/imports', iconKey: 'imports', requiredAnyPermissions: ['user:import', 'user:manage', 'record:verify'] },
         { label: 'Users & Access', href: '/admin/people', iconKey: 'people', requiredAnyPermissions: ['user:manage', 'user:import'] },
         { label: 'Settings', href: '/admin/settings', iconKey: 'settings', requiredAnyPermissions: ['institution:manage'] },
       ],

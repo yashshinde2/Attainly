@@ -451,6 +451,14 @@ export function SingleUserForm({ roles }: { roles: Role[] }) {
   const [state, action, pending] = useActionState(addUser, initialState)
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs">
+        <span className="text-muted-foreground">
+          Importing student/faculty profiles, semester grades, achievements, or research in bulk (CSV/XLSX)?
+        </span>
+        <Link href="/admin/imports" className="font-semibold text-primary hover:underline">
+          Open Bulk Import Center →
+        </Link>
+      </div>
       <form action={action} className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -571,6 +579,14 @@ export function BulkImportForm() {
 
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs">
+        <span className="text-muted-foreground">
+          Importing student/faculty profiles, semester grades, achievements, or research in bulk (CSV/XLSX)?
+        </span>
+        <Link href="/admin/imports" className="font-semibold text-primary hover:underline">
+          Open Bulk Import Center →
+        </Link>
+      </div>
       <form action={action} className="flex flex-col gap-4">
         <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4">
           <label htmlFor="csvFile" className={labelClass}>Upload CSV File</label>

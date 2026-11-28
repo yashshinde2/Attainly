@@ -137,6 +137,7 @@ model Institution {
   inspectionCollections  InspectionCollection[]
   dataCollectionRequests DataCollectionRequest[]
   exportJobs             ExportJob[]
+  importJobs             ImportJob[]
 }
 
 model Department {
@@ -825,6 +826,94 @@ model ExportJob {
   @@id([institutionId, id])
   @@index([institutionId, status, createdAt])
   @@index([status, createdAt])
+}
+
+enum ImportJobStatus {
+  VALIDATED
+  QUEUED
+  PROCESSING
+  COMPLETED
+  PARTIALLY_FAILED
+  FAILED
+  CANCELLED
+  ROLLED_BACK
+}
+
+enum ImportConflictMode {
+  CREATE_ONLY
+  UPDATE_EXISTING
+  SKIP_EXISTING
+}
+
+enum ImportRowStatus {
+  VALID
+  INVALID
+  CREATED
+  UPDATED
+  SKIPPED
+  FAILED
+  ROLLED_BACK
+}
+
+model ImportJob {
+  id                     String             @default(cuid())
+  institutionId          String             @map("institution_id")
+  requestedByUserId      String
+  importType             String
+  fileName               String
+  fileFormat             String
+  conflictMode           ImportConflictMode @default(SKIP_EXISTING)
+  trustProvenance        String             @default("SELF_REPORTED")
+  allowOverwriteVerified Boolean            @default(false)
+  status                 ImportJobStatus    @default(QUEUED)
+  idempotencyKey         String?
+  columnMappingJson      Json?
+  payloadJson            Json?
+  totalRows              Int                @default(0)
+  validRows              Int                @default(0)
+  invalidRows            Int                @default(0)
+  processedRows          Int                @default(0)
+  createdCount           Int                @default(0)
+  updatedCount           Int                @default(0)
+  skippedCount           Int                @default(0)
+  failedCount            Int                @default(0)
+  summaryJson            Json?
+  errorReportJson        Json?
+  errorMessage           String?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  cancelledAt            DateTime?
+  rolledBackAt           DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  institution            Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  rows                   ImportJobRow[]
+
+  @@id([institutionId, id])
+  @@unique([institutionId, idempotencyKey])
+  @@index([institutionId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+model ImportJobRow {
+  id             String          @default(cuid())
+  institutionId  String          @map("institution_id")
+  importJobId    String
+  rowNumber      Int
+  status         ImportRowStatus @default(VALID)
+  matchKey       String?
+  targetModel    String?
+  targetRecordId String?
+  rawPayloadJson Json
+  normalizedJson Json?
+  errorMessage   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  importJob      ImportJob       @relation(fields: [institutionId, importJobId], references: [institutionId, id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, importJobId, rowNumber])
+  @@index([institutionId, importJobId, status])
 }
 
 model DataCollectionRequest {
