@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useActionState, useState } from 'react'
-import { Clock, ExternalLink, Eye, History, UserCheck } from 'lucide-react'
+import { CheckSquare, Clock, ExternalLink, Eye, History, Sparkles, UserCheck } from 'lucide-react'
 import {
   assignVerificationReviewerAction,
   setVerificationStatusAction,
@@ -16,9 +17,13 @@ const initialState: VerificationActionState = { status: 'idle', message: '' }
 function VerificationRow({
   item,
   reviewers,
+  selected,
+  onToggleSelect,
 }: {
   item: VerificationCenterItem
   reviewers: Array<{ id: string; name: string }>
+  selected: boolean
+  onToggleSelect: (checked: boolean) => void
 }) {
   const [approveState, approveAction, approvePending] = useActionState(setVerificationStatusAction, initialState)
   const [rejectState, rejectAction, rejectPending] = useActionState(setVerificationStatusAction, initialState)
@@ -43,6 +48,13 @@ function VerificationRow({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(e) => onToggleSelect(e.target.checked)}
+              aria-label={`Select ${item.title}`}
+              className="rounded border-input"
+            />
             <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
               {item.itemType.replace(/_/g, ' ')}
             </span>
@@ -197,6 +209,67 @@ export function AdminVerificationCenterClient({
   }>
   filters: Record<string, string>
 }) {
+  const router = useRouter()
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([])
+  const [bulkReason, setBulkReason] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkFeedback, setBulkFeedback] = useState<string | null>(null)
+
+  const keyOf = (i: VerificationCenterItem) => `${i.itemType}::${i.id}`
+  const selectedItems = items.filter((i) => selectedKeys.includes(keyOf(i)))
+
+  const runBulkDecision = async (decision: 'VERIFIED' | 'REJECTED') => {
+    if (selectedItems.length === 0) return
+    setBulkBusy(true)
+    setBulkFeedback(null)
+    try {
+      const res = await fetch('/api/admin/verifications/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'decide',
+          decision,
+          rejectionReason: decision === 'REJECTED' ? bulkReason : null,
+          items: selectedItems.map((i) => ({
+            itemType: i.itemType,
+            itemId: i.id,
+            expectedVersion: i.version,
+          })),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Bulk action failed.')
+      setBulkFeedback(`Bulk ${decision}: ${json.succeededCount} succeeded, ${json.failedCount} failed.`)
+      setSelectedKeys([])
+      setBulkReason('')
+      router.refresh()
+    } catch (err) {
+      setBulkFeedback(err instanceof Error ? err.message : 'Bulk action failed.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const runAutoAssign = async () => {
+    setBulkBusy(true)
+    setBulkFeedback(null)
+    try {
+      const res = await fetch('/api/admin/verifications/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'auto_assign' }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Auto-assign failed.')
+      setBulkFeedback(`Applied assignment rules to ${json.assignedCount} unassigned item(s).`)
+      router.refresh()
+    } catch (err) {
+      setBulkFeedback(err instanceof Error ? err.message : 'Auto-assign failed.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   return (
     <div className="mt-6 flex flex-col gap-6">
       <section className="rounded-2xl border border-border bg-card p-5">
@@ -207,7 +280,59 @@ export function AdminVerificationCenterClient({
               {items.length} pending {items.length === 1 ? 'claim' : 'claims'} &bull; Self-verification is blocked
             </p>
           </div>
+          <button
+            type="button"
+            disabled={bulkBusy}
+            onClick={runAutoAssign}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:bg-muted"
+          >
+            <Sparkles size={13} /> Apply Assignment Rules
+          </button>
         </div>
+
+        {items.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs">
+            <label className="inline-flex items-center gap-2 font-semibold">
+              <input
+                type="checkbox"
+                checked={items.length > 0 && selectedKeys.length === items.length}
+                onChange={(e) => setSelectedKeys(e.target.checked ? items.map(keyOf) : [])}
+              />
+              <span>Select all ({selectedKeys.length} selected)</span>
+            </label>
+            {selectedKeys.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => runBulkDecision('VERIFIED')}
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700"
+                >
+                  <CheckSquare size={13} /> Bulk Approve ({selectedKeys.length})
+                </button>
+                <input
+                  value={bulkReason}
+                  onChange={(e) => setBulkReason(e.target.value)}
+                  placeholder="Bulk correction reason..."
+                  className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs"
+                />
+                <button
+                  type="button"
+                  disabled={bulkBusy || !bulkReason.trim()}
+                  onClick={() => runBulkDecision('REJECTED')}
+                  className="rounded-lg bg-destructive px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                >
+                  Bulk Request Correction
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {bulkFeedback && (
+          <p role="status" className="mb-3 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+            {bulkFeedback}
+          </p>
+        )}
 
         <form action="/admin/verifications" method="GET" className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/20 p-3.5 text-xs">
           <select name="itemType" defaultValue={filters.itemType ?? ''} className="rounded-xl border border-input bg-background px-3 py-2 outline-none">
@@ -244,9 +369,20 @@ export function AdminVerificationCenterClient({
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {items.map((item) => (
-              <VerificationRow key={`${item.itemType}-${item.id}`} item={item} reviewers={reviewers} />
-            ))}
+            {items.map((item) => {
+              const k = keyOf(item)
+              return (
+                <VerificationRow
+                  key={`${item.itemType}-${item.id}`}
+                  item={item}
+                  reviewers={reviewers}
+                  selected={selectedKeys.includes(k)}
+                  onToggleSelect={(checked) =>
+                    setSelectedKeys((prev) => (checked ? [...prev, k] : prev.filter((x) => x !== k)))
+                  }
+                />
+              )
+            })}
           </div>
         )}
       </section>

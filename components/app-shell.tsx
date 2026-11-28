@@ -32,6 +32,7 @@ import {
   UserCircle,
   UsersRound,
   X,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
@@ -64,6 +65,7 @@ const ICON_MAP: Record<NavItemConfig['iconKey'], LucideIcon> = {
   students: GraduationCap,
   faculty: UsersRound,
   verifications: CheckSquare,
+  actionCenter: Zap,
   departments: BookOpen,
   courses: Layers,
   lifecycle: ArrowRightLeft,
@@ -105,10 +107,33 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [globalSearch, setGlobalSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; category: string; title: string; subtitle: string; href: string }>>([])
+  const [searchOpen, setSearchOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const meta = PORTAL_META[portal]
   const pathSegments = pathname.split('/').filter(Boolean)
+
+  useEffect(() => {
+    const q = globalSearch.trim()
+    if (q.length < 2) {
+      setSearchResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
+        if (res.ok) {
+          const json = (await res.json()) as { results: typeof searchResults }
+          setSearchResults(json.results ?? [])
+          setSearchOpen(true)
+        }
+      } catch {
+        // Ignore transient search errors
+      }
+    }, 220)
+    return () => clearTimeout(timer)
+  }, [globalSearch])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -331,10 +356,32 @@ export function AppShell({
                   type="search"
                   value={globalSearch}
                   onChange={(e) => setGlobalSearch(e.target.value)}
+                  onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+                  onBlur={() => setTimeout(() => setSearchOpen(false), 180)}
                   placeholder={meta.searchPlaceholder}
                   aria-label={meta.searchPlaceholder}
-                  className="w-44 rounded-lg border border-input bg-background py-1.5 pl-8 pr-3 text-xs outline-none transition-all focus:w-60 focus:border-ring focus:ring-2 focus:ring-ring/20"
+                  className="w-44 rounded-lg border border-input bg-background py-1.5 pl-8 pr-3 text-xs outline-none transition-all focus:w-64 focus:border-ring focus:ring-2 focus:ring-ring/20"
                 />
+                {searchOpen && searchResults.length > 0 && (
+                  <div className="absolute right-0 top-full z-50 mt-1.5 w-80 rounded-xl border border-border bg-card p-1.5 shadow-xl">
+                    {searchResults.map((r) => (
+                      <Link
+                        key={`${r.category}-${r.id}`}
+                        href={r.href}
+                        onClick={() => setSearchOpen(false)}
+                        className="flex flex-col rounded-lg px-3 py-2 text-xs hover:bg-muted"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-semibold text-foreground">{r.title}</span>
+                          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                            {r.category}
+                          </span>
+                        </div>
+                        <span className="truncate text-[11px] text-muted-foreground">{r.subtitle}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </form>
 
               <Link

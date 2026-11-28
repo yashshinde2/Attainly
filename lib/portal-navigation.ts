@@ -26,6 +26,7 @@ export interface NavItemConfig {
     | 'students'
     | 'faculty'
     | 'verifications'
+    | 'actionCenter'
     | 'departments'
     | 'courses'
     | 'lifecycle'
@@ -128,6 +129,7 @@ const PORTAL_NAV_GROUPS: Record<PortalType, NavGroupConfig[]> = {
       groupLabel: 'Command & Directories',
       items: [
         { label: 'Overview', href: '/admin', iconKey: 'overview', requiredAnyPermissions: ['report:view', 'record:verify'] },
+        { label: 'Action Center', href: '/admin/action-center', iconKey: 'actionCenter', requiredAnyPermissions: ['report:view', 'record:verify'] },
         { label: 'Students', href: '/admin/students', iconKey: 'students', requiredAnyPermissions: ['user:manage', 'report:view', 'record:verify'] },
         { label: 'Faculty', href: '/admin/faculty', iconKey: 'faculty', requiredAnyPermissions: ['user:manage', 'report:view', 'record:verify'] },
         { label: 'Verifications', href: '/admin/verifications', iconKey: 'verifications', requiredAnyPermissions: ['record:verify'] },

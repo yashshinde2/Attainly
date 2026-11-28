@@ -905,12 +905,12 @@ export async function listVerificationCenterQueue(input: {
       key: 'GRADUATE_OUTCOME',
       sql: Prisma.sql`
         SELECT t.id, 'GRADUATE_OUTCOME'::text AS item_type,
-          CONCAT('Outcome: ', REPLACE(t."outcomeType", '_', ' ')) AS title,
+          CONCAT('Outcome: ', REPLACE(t."outcomeType"::text, '_', ' ')) AS title,
           TRIM(CONCAT(u."firstName", ' ', u."lastName")) AS student_name,
           u.email AS student_email, sp."enrollmentNumber" AS enrollment_number,
           t."createdAt" AS submitted_at,
-          NULLIF(CONCAT_WS(' | ', t."institutionOrEmployer", t."programOrRole"), '') AS details,
-          t."documentUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
+          NULLIF(CONCAT_WS(' | ', t."organizationOrUniversity", t."programOrRole"), '') AS details,
+          t."evidenceUrl" AS file_url, t.version, t."verificationStatus" AS verification_status,
           sp."departmentId" AS department_id, t."rejectionReason" AS rejection_reason
         FROM "StudentGraduateOutcome" t
         JOIN "StudentProfile" sp ON sp.institution_id = t.institution_id AND sp.id = t."studentProfileId"
@@ -1073,4 +1073,95 @@ export async function listVerificationHistory(input: {
     actorName: userMap.get(l.actorUserId) ?? 'Reviewer',
     assignedToName: l.assignedToUserId ? (userMap.get(l.assignedToUserId) ?? 'Reviewer') : null,
   }))
+}
+
+export interface BulkVerificationItemInput {
+  itemType: PendingVerificationItem['itemType']
+  itemId: string
+  expectedVersion: number
+}
+
+export async function bulkDecideVerifications(input: {
+  principal: AuthenticatedPrincipal
+  items: BulkVerificationItemInput[]
+  decision: 'VERIFIED' | 'REJECTED'
+  rejectionReason?: string | null
+}) {
+  requirePermission(input.principal, 'record:verify')
+  if (input.items.length === 0 || input.items.length > 50) {
+    throw new Error('Select between 1 and 50 items for bulk review.')
+  }
+  if (input.decision === 'REJECTED' && !input.rejectionReason?.trim()) {
+    throw new Error('A correction/rejection reason is required for bulk rejection.')
+  }
+
+  let succeededCount = 0
+  let failedCount = 0
+  const results: Array<{ itemType: string; itemId: string; status: 'SUCCEEDED' | 'FAILED'; error?: string }> = []
+
+  for (const item of input.items) {
+    try {
+      await setVerificationStatus({
+        principal: input.principal,
+        data: {
+          itemType: item.itemType,
+          itemId: item.itemId,
+          expectedVersion: item.expectedVersion,
+          status: input.decision,
+          rejectionReason: input.rejectionReason ?? null,
+        },
+      })
+      succeededCount += 1
+      results.push({ itemType: item.itemType, itemId: item.itemId, status: 'SUCCEEDED' })
+    } catch (err) {
+      failedCount += 1
+      results.push({
+        itemType: item.itemType,
+        itemId: item.itemId,
+        status: 'FAILED',
+        error: err instanceof Error ? err.message : 'Decision failed.',
+      })
+    }
+  }
+
+  return { succeededCount, failedCount, results }
+}
+
+export async function applyReviewerAssignmentRules(principal: AuthenticatedPrincipal) {
+  requirePermission(principal, 'record:verify')
+  const { institutionId } = principal
+  const [rules, queueItems] = await Promise.all([
+    prisma.reviewerAssignmentRule.findMany({
+      where: { institutionId, isActive: true },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+    }),
+    listVerificationCenterQueue({ principal, limit: 100, offset: 0 }),
+  ])
+
+  if (rules.length === 0) return { assignedCount: 0 }
+
+  let assignedCount = 0
+  for (const item of queueItems) {
+    if (item.assignedToUserId) continue
+    const match =
+      rules.find((r) => r.departmentId === item.departmentId && r.itemType === item.itemType) ??
+      rules.find((r) => r.departmentId === item.departmentId && r.itemType === 'ALL') ??
+      rules.find((r) => r.departmentId === null && r.itemType === item.itemType) ??
+      rules.find((r) => r.departmentId === null && r.itemType === 'ALL')
+    if (!match) continue
+
+    try {
+      await assignVerificationReviewer({
+        principal,
+        itemType: item.itemType,
+        itemId: item.id,
+        assignedToUserId: match.reviewerUserId,
+      })
+      assignedCount += 1
+    } catch {
+      // Skip items outside reviewer scope or deleted concurrently
+    }
+  }
+
+  return { assignedCount }
 }

@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
+import { Download } from 'lucide-react'
 import type { StudentDirectoryItem } from '@/lib/server/services/admin-command'
 import type { DepartmentWithCourseCount, CourseWithDepartment } from '@/lib/server/repositories/department-repository'
 
@@ -21,7 +23,33 @@ export function AdminStudentDirectoryClient({
   courses: CourseWithDepartment[]
   filters: Record<string, string>
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [exporting, setExporting] = useState(false)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  const handleBulkExport = async () => {
+    if (selectedIds.length === 0) return
+    setExporting(true)
+    try {
+      const res = await fetch('/api/admin/dossiers/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType: 'STUDENT', userIds: selectedIds }),
+      })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `attainly-student-dossiers-${new Date().toISOString().slice(0, 10)}.zip`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const buildPageHref = (nextPage: number) => {
     const p = new URLSearchParams(filters)
@@ -39,9 +67,22 @@ export function AdminStudentDirectoryClient({
               {total} {total === 1 ? 'student' : 'students'} matched &bull; Server-filtered &amp; paginated
             </p>
           </div>
-          <Link href="/admin/people" prefetch={true} className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold hover:bg-muted">
-            Account Provisioning &rarr;
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedIds.length > 0 && (
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={handleBulkExport}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+              >
+                <Download size={13} />
+                {exporting ? 'Exporting…' : `Export Dossiers (${selectedIds.length})`}
+              </button>
+            )}
+            <Link href="/admin/people" prefetch={true} className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold hover:bg-muted">
+              Account Provisioning &rarr;
+            </Link>
+          </div>
         </div>
 
         <form action="/admin/students" method="GET" className="grid gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -114,6 +155,14 @@ export function AdminStudentDirectoryClient({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-border font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="pb-3 pr-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all students on page"
+                      checked={items.length > 0 && items.every((s) => selectedIds.includes(s.userId))}
+                      onChange={(e) => setSelectedIds(e.target.checked ? items.map((s) => s.userId) : [])}
+                    />
+                  </th>
                   <th className="pb-3 pr-3">Student</th>
                   <th className="pb-3 pr-3">Enrollment #</th>
                   <th className="pb-3 pr-3">Department / Program</th>
@@ -126,6 +175,18 @@ export function AdminStudentDirectoryClient({
               <tbody className="divide-y divide-border">
                 {items.map((s) => (
                   <tr key={s.userId} className="hover:bg-muted/30">
+                    <td className="py-3 pr-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${s.name}`}
+                        checked={selectedIds.includes(s.userId)}
+                        onChange={(e) =>
+                          setSelectedIds((prev) =>
+                            e.target.checked ? [...prev, s.userId] : prev.filter((id) => id !== s.userId),
+                          )
+                        }
+                      />
+                    </td>
                     <td className="py-3 pr-3">
                       <p className="font-semibold text-foreground">{s.name}</p>
                       <p className="text-muted-foreground">{s.email}</p>
