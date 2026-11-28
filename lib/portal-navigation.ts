@@ -148,6 +148,7 @@ const PORTAL_NAV_GROUPS: Record<PortalType, NavGroupConfig[]> = {
       groupLabel: 'Evidence & Governance',
       items: [
         { label: 'Reports', href: '/admin/reports', iconKey: 'reports', requiredAnyPermissions: ['report:view'] },
+        { label: 'Report Packages', href: '/admin/packages', iconKey: 'reports', requiredAnyPermissions: ['report:view'] },
         { label: 'Document Vault', href: '/admin/documents', iconKey: 'documents', requiredAnyPermissions: ['report:view', 'record:verify'] },
         { label: 'Inspections', href: '/admin/inspections', iconKey: 'inspections', requiredAnyPermissions: ['report:view'] },
         { label: 'Bulk Import', href: '/admin/imports', iconKey: 'imports', requiredAnyPermissions: ['user:import', 'user:manage', 'record:verify'] },
