@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
+  ArrowRightLeft,
   Award,
   BarChart3,
   Bell,
@@ -65,6 +66,7 @@ const ICON_MAP: Record<NavItemConfig['iconKey'], LucideIcon> = {
   verifications: CheckSquare,
   departments: BookOpen,
   courses: Layers,
+  lifecycle: ArrowRightLeft,
   reports: BarChart3,
   inspections: FileBadge,
   imports: FileSpreadsheet,

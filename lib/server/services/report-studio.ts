@@ -132,10 +132,12 @@ export async function runStudioReport(
       ? { in: allowedDepts }
       : undefined
 
-  const [institution, { window: dateWindow, label: ayLabel }] = await Promise.all([
+  const [institution, { window: dateWindow, label: ayLabel }, allDepartments] = await Promise.all([
     prisma.institution.findUnique({ where: { id: institutionId }, select: { name: true } }),
     resolveDateWindow(institutionId, filters),
+    prisma.department.findMany({ where: { institutionId }, select: { id: true, code: true } }),
   ])
+  const deptCodeById = new Map(allDepartments.map((d) => [d.id, d.code]))
 
   const includeUnverified = Boolean(filters.includeUnverified || filters.verificationStatus === 'ALL')
   const verificationWhere = buildVerificationWhere(filters)
@@ -210,10 +212,15 @@ export async function runStudioReport(
         ...catFilter,
         ...(filters.participationLevel ? { participationLevel: filters.participationLevel } : {}),
         ...(filters.result ? { status: filters.result as never } : {}),
-        studentProfile: {
-          ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
-          ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
-        },
+        ...(deptScopeFilter
+          ? {
+              OR: [
+                { departmentId: deptScopeFilter },
+                { departmentId: null, studentProfile: { departmentId: deptScopeFilter } },
+              ],
+            }
+          : {}),
+        ...(filters.batchYear ? { studentProfile: { admissionYear: filters.batchYear } } : {}),
       }
       const dateWhere: Prisma.AchievementWhereInput = includeMissing
         ? {}
@@ -260,7 +267,10 @@ export async function runStudioReport(
           title: r.title,
           studentName: `${r.studentProfile.user.firstName} ${r.studentProfile.user.lastName}`,
           enrollmentNumber: r.studentProfile.enrollmentNumber ?? '—',
-          departmentCode: r.studentProfile.department?.code ?? 'Unassigned',
+          departmentCode:
+            (r.departmentId ? deptCodeById.get(r.departmentId) : undefined) ??
+            r.studentProfile.department?.code ??
+            'Unassigned',
           category: r.categoryCode ?? r.category,
           teamName: r.teamName ?? 'Individual',
           participationLevel: r.participationLevel ?? '—',
@@ -424,7 +434,10 @@ export async function runStudioReport(
           return {
             title: r.title,
             studentName: `${r.studentProfile.user.firstName} ${r.studentProfile.user.lastName}`,
-            departmentCode: r.studentProfile.department?.code ?? 'Unassigned',
+            departmentCode:
+            (r.departmentId ? deptCodeById.get(r.departmentId) : undefined) ??
+            r.studentProfile.department?.code ??
+            'Unassigned',
             teamName: r.teamName ?? 'Individual',
             participationLevel: r.participationLevel ?? '—',
             status: r.status,
@@ -519,10 +532,15 @@ export async function runStudioReport(
           ...(dateRange
             ? { OR: [{ startDate: dateRange }, { startDate: null, createdAt: dateRange }] }
             : {}),
-          studentProfile: {
-            ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
-            ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
-          },
+          ...(deptScopeFilter
+            ? {
+                OR: [
+                  { departmentId: deptScopeFilter },
+                  { departmentId: null, studentProfile: { departmentId: deptScopeFilter } },
+                ],
+              }
+            : {}),
+          ...(filters.batchYear ? { studentProfile: { admissionYear: filters.batchYear } } : {}),
         },
         include: {
           studentProfile: {
@@ -562,10 +580,15 @@ export async function runStudioReport(
           ...(dateRange
             ? { OR: [{ offeredAt: dateRange }, { offeredAt: null, createdAt: dateRange }] }
             : {}),
-          studentProfile: {
-            ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}),
-            ...(filters.batchYear ? { admissionYear: filters.batchYear } : {}),
-          },
+          ...(deptScopeFilter
+            ? {
+                OR: [
+                  { departmentId: deptScopeFilter },
+                  { departmentId: null, studentProfile: { departmentId: deptScopeFilter } },
+                ],
+              }
+            : {}),
+          ...(filters.batchYear ? { studentProfile: { admissionYear: filters.batchYear } } : {}),
         },
         include: {
           studentProfile: {
@@ -706,7 +729,16 @@ export async function runStudioReport(
             institutionId,
             ...verificationWhere,
             ...(deptScopeFilter
-              ? { contributors: { some: { facultyProfile: { departmentId: deptScopeFilter } } } }
+              ? {
+                  contributors: {
+                    some: {
+                      OR: [
+                        { departmentId: deptScopeFilter },
+                        { departmentId: null, facultyProfile: { departmentId: deptScopeFilter } },
+                      ],
+                    },
+                  },
+                }
               : {}),
           },
           include: { _count: { select: { contributors: true } } },
@@ -781,7 +813,14 @@ export async function runStudioReport(
                 },
               }
             : {}),
-          facultyProfile: { ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}) },
+          ...(deptScopeFilter
+            ? {
+                OR: [
+                  { departmentId: deptScopeFilter },
+                  { departmentId: null, facultyProfile: { departmentId: deptScopeFilter } },
+                ],
+              }
+            : {}),
         },
         include: {
           facultyProfile: {
@@ -797,7 +836,10 @@ export async function runStudioReport(
       rawRows = filtered.map((r) => ({
         title: r.title,
         facultyName: `${r.facultyProfile.user.firstName} ${r.facultyProfile.user.lastName}`,
-        departmentCode: r.facultyProfile.department?.code ?? 'Unassigned',
+        departmentCode:
+          (r.departmentId ? deptCodeById.get(r.departmentId) : undefined) ??
+          r.facultyProfile.department?.code ??
+          'Unassigned',
         organizer: r.organizer,
         mode: r.mode,
         startDate: r.startDate.toISOString().slice(0, 10),
@@ -820,7 +862,14 @@ export async function runStudioReport(
                 },
               }
             : {}),
-          facultyProfile: { ...(deptScopeFilter ? { departmentId: deptScopeFilter } : {}) },
+          ...(deptScopeFilter
+            ? {
+                OR: [
+                  { departmentId: deptScopeFilter },
+                  { departmentId: null, facultyProfile: { departmentId: deptScopeFilter } },
+                ],
+              }
+            : {}),
         },
         include: {
           facultyProfile: {
@@ -838,7 +887,10 @@ export async function runStudioReport(
       rawRows = filtered.map((r) => ({
         title: r.title,
         facultyName: `${r.facultyProfile.user.firstName} ${r.facultyProfile.user.lastName}`,
-        departmentCode: r.facultyProfile.department?.code ?? 'Unassigned',
+        departmentCode:
+          (r.departmentId ? deptCodeById.get(r.departmentId) : undefined) ??
+          r.facultyProfile.department?.code ??
+          'Unassigned',
         clientOrganization: r.clientOrganization,
         amount: r.amount ?? 0,
         startDate: r.startDate.toISOString().slice(0, 10),

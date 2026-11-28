@@ -28,6 +28,7 @@ export interface NavItemConfig {
     | 'verifications'
     | 'departments'
     | 'courses'
+    | 'lifecycle'
     | 'reports'
     | 'inspections'
     | 'imports'
@@ -137,6 +138,7 @@ const PORTAL_NAV_GROUPS: Record<PortalType, NavGroupConfig[]> = {
       items: [
         { label: 'Departments', href: '/admin/departments', iconKey: 'departments', requiredAnyPermissions: ['department:manage'] },
         { label: 'Courses', href: '/admin/courses', iconKey: 'courses', requiredAnyPermissions: ['course:manage'] },
+        { label: 'Lifecycle', href: '/admin/lifecycle', iconKey: 'lifecycle', requiredAnyPermissions: ['user:manage', 'institution:manage'] },
         { label: 'Events', href: '/admin/events', iconKey: 'events', requiredAnyPermissions: ['event:create', 'event:enter_results'] },
       ],
     },
