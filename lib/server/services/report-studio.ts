@@ -3,6 +3,7 @@ import { prisma } from '@/lib/server/db'
 import type { Prisma } from '@/generated/prisma/client'
 import { requirePermission, type AuthenticatedPrincipal } from '../authorization'
 import { assertDepartmentAccess, resolveDepartmentScope } from './admin-command'
+import { getInstitutionConfigOrDefault } from './institution-config'
 import { REPORT_REGISTRY, type ReportEntityType } from '@/lib/reporting-registry'
 import type { ReportFilterValues, ReportSummaryMetric, ReportTableResult } from '@/lib/report-types'
 import {
@@ -132,10 +133,11 @@ export async function runStudioReport(
       ? { in: allowedDepts }
       : undefined
 
-  const [institution, { window: dateWindow, label: ayLabel }, allDepartments] = await Promise.all([
+  const [institution, { window: dateWindow, label: ayLabel }, allDepartments, instConfig] = await Promise.all([
     prisma.institution.findUnique({ where: { id: institutionId }, select: { name: true } }),
     resolveDateWindow(institutionId, filters),
     prisma.department.findMany({ where: { institutionId }, select: { id: true, code: true } }),
+    getInstitutionConfigOrDefault(institutionId),
   ])
   const deptCodeById = new Map(allDepartments.map((d) => [d.id, d.code]))
 
@@ -1073,8 +1075,10 @@ export async function runStudioReport(
   return {
     entityType,
     title: isDrillDown ? `${registry.label} — ${filters.groupBy}: ${drillVal}` : registry.label,
-    subtitle: registry.description,
-    institutionName: institution?.name ?? 'Attainly Institution',
+    subtitle: instConfig.reportHeaderSubtitle || registry.description,
+    institutionName: instConfig.reportHeaderTitle
+      ? `${institution?.name ?? 'Attainly Institution'} — ${instConfig.reportHeaderTitle}`
+      : (institution?.name ?? 'Attainly Institution'),
     countingUnit: registry.countingUnit,
     dateFieldSemantics: registry.dateFieldSemantics,
     verificationScope: filters.includeMissingActivityDates

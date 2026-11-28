@@ -149,6 +149,9 @@ model Institution {
   reviewerAssignmentRules ReviewerAssignmentRule[]
   dataCollectionTemplates DataCollectionTemplate[]
   adminReminderRules      AdminReminderRule[]
+  institutionConfig       InstitutionConfig?
+  customFieldDefinitions  CustomFieldDefinition[]
+  customFieldValues       CustomFieldValue[]
 }
 
 model Department {
@@ -1417,4 +1420,68 @@ model AdminReminderRule {
 
   @@id([institutionId, id])
   @@index([institutionId, isActive])
+}
+
+model InstitutionConfig {
+  institutionId            String      @id @map("institution_id")
+  academicYearStartMonth   Int         @default(7)
+  gradingScaleType         String      @default("CGPA_10")
+  gradingScaleMax          Float       @default(10)
+  studentIdLabel           String      @default("Enrollment Number")
+  facultyIdLabel           String      @default("Employee ID")
+  facultyDesignations      String[]    @default(["Professor", "Associate Professor", "Assistant Professor", "Lecturer", "Visiting Faculty"])
+  employmentCategories     String[]    @default(["Regular", "Contract", "Ad-hoc", "Visiting"])
+  allowedDocumentTypes     String[]    @default(["application/pdf", "image/jpeg", "image/png"])
+  requireEvidenceForClaims Boolean     @default(false)
+  mandatoryStudentFields   String[]    @default(["phone", "dateOfBirth", "address"])
+  mandatoryFacultyFields   String[]    @default(["phone", "designation", "specialization"])
+  reportHeaderTitle        String?
+  reportHeaderSubtitle     String?
+  brandPrimaryColor        String?
+  inspectionTemplatesJson  Json?
+  updatedAt                DateTime    @updatedAt
+  institution              Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+}
+
+model CustomFieldDefinition {
+  id               String      @default(cuid())
+  institutionId    String      @map("institution_id")
+  fieldKey         String
+  displayName      String
+  description      String?
+  dataType         String      @default("TEXT")
+  profileType      String      @default("STUDENT")
+  isRequired       Boolean     @default(false)
+  allowedValues    String[]    @default([])
+  validationRegex  String?
+  visibilityScope  String      @default("SELF_AND_ADMIN")
+  reportEligible   Boolean     @default(false)
+  isActive         Boolean     @default(true)
+  version          Int         @default(1)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  institution      Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, profileType, fieldKey])
+  @@index([institutionId, profileType, isActive])
+}
+
+model CustomFieldValue {
+  id                String      @default(cuid())
+  institutionId     String      @map("institution_id")
+  definitionId      String
+  definitionVersion Int         @default(1)
+  fieldKey          String
+  profileType       String
+  profileId         String
+  valueText         String?
+  updatedByUserId   String
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  institution       Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@id([institutionId, id])
+  @@unique([institutionId, profileType, profileId, fieldKey])
+  @@index([institutionId, profileType, profileId])
 }

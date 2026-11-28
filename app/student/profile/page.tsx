@@ -5,6 +5,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { PrismaStudentProfileRepository } from '@/lib/server/repositories/student-profile-repository'
 import { readOwnStudentProfile } from '@/lib/server/services/student'
+import { getProfileCustomFields } from '@/lib/server/services/institution-config'
+import { CustomProfileFieldsCard } from '@/components/shared/custom-profile-fields'
 
 const profileRepository = new PrismaStudentProfileRepository()
 
@@ -15,16 +17,28 @@ export default async function StudentProfilePage() {
   ])
 
   const profile = await readOwnStudentProfile({ principal, repository: profileRepository })
+  const customFields = profile
+    ? await getProfileCustomFields(principal, { profileType: 'STUDENT', profileId: profile.id })
+    : []
 
   return (
     <PortalDashboard
       portal="student"
       content={
-        <StudentProfileSection
-          studentName={session?.user?.name ?? 'Student'}
-          email={session?.user?.email ?? ''}
-          profile={profile}
-        />
+        <div className="space-y-6">
+          <StudentProfileSection
+            studentName={session?.user?.name ?? 'Student'}
+            email={session?.user?.email ?? ''}
+            profile={profile}
+          />
+          {profile && (
+            <CustomProfileFieldsCard
+              profileType="STUDENT"
+              profileId={profile.id}
+              fields={customFields}
+            />
+          )}
+        </div>
       }
     />
   )
