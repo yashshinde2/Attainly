@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useMemo, useState } from 'react'
+import { useActionState, useMemo, useRef, useState } from 'react'
 import { Edit3, Plus, Search, X } from 'lucide-react'
 import {
   addStudentAchievement,
@@ -22,6 +22,10 @@ import {
   studentFieldClass,
   studentLabelClass,
 } from './shared-ui'
+import {
+  DuplicateRecordSuggestionBanner,
+  FormDraftBanner,
+} from '@/components/shared/smart-evidence-uploader'
 
 const initialState: StudentActionState = { status: 'idle', message: '' }
 
@@ -57,6 +61,8 @@ export function StudentAchievementsSection({
   const [showAddForm, setShowAddForm] = useState(items.length === 0)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'VERIFIED' | 'PENDING' | 'REJECTED'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
+  const [draftTitle, setDraftTitle] = useState('')
+  const addFormRef = useRef<HTMLFormElement>(null)
 
   const activeCategoryConfig = categories.find((c) => c.code === selectedCatCode)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -95,17 +101,33 @@ export function StudentAchievementsSection({
 
       {/* Add Achievement Form */}
       {showAddForm && (
-      <form action={addAction} className="mb-6 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-3">
+      <form ref={addFormRef} action={addAction} className="mb-6 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-3">
         <input type="hidden" name="category" value={mapConfigToLegacyCategory(selectedCatCode)} />
+
+        <FormDraftBanner
+          draftKey="student-achievement"
+          formRef={addFormRef}
+          clearWhenSuccess={addState.status === 'success'}
+        />
 
         <div className="sm:col-span-2">
           <label htmlFor="ach-title" className={studentLabelClass}>Achievement / Event Title</label>
-          <input id="ach-title" name="title" required className={studentFieldClass} placeholder="e.g. Smart India Hackathon Finalist" />
+          <input
+            id="ach-title"
+            name="title"
+            required
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            className={studentFieldClass}
+            placeholder="e.g. Smart India Hackathon Finalist"
+          />
         </div>
         <div>
           <label htmlFor="ach-date" className={studentLabelClass}>Activity Date</label>
           <input id="ach-date" name="awardedAt" type="date" className={studentFieldClass} />
         </div>
+
+        <DuplicateRecordSuggestionBanner type="ACHIEVEMENT" title={draftTitle} />
 
         <div>
           <label htmlFor="ach-cat-code" className={studentLabelClass}>Category</label>

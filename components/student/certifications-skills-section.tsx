@@ -1,7 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
-import { Edit3, ExternalLink, Plus } from 'lucide-react'
+import { useActionState, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Clock, Edit3, ExternalLink, Plus } from 'lucide-react'
 import {
   addStudentCertification,
   addStudentSkill,
@@ -24,6 +24,10 @@ import {
   studentFieldClass,
   studentLabelClass,
 } from './shared-ui'
+import {
+  DuplicateRecordSuggestionBanner,
+  FormDraftBanner,
+} from '@/components/shared/smart-evidence-uploader'
 
 const initialState: StudentActionState = { status: 'idle', message: '' }
 
@@ -43,6 +47,19 @@ export function StudentCertificationsSkillsSection({
   const [skillEditState, skillEditAction, skillEditPending] = useActionState(updateStudentSkill, initialState)
   const [skillDelState, skillDelAction] = useActionState(deleteStudentSkill, initialState)
   const [editingSkillId, setEditingSkillId] = useState<string | null>(null)
+  const [draftCertName, setDraftCertName] = useState('')
+  const certFormRef = useRef<HTMLFormElement>(null)
+
+  const expiryAlerts = useMemo(() => {
+    const now = Date.now()
+    const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000
+    return certifications
+      .filter((c) => c.expiresAt && new Date(c.expiresAt).getTime() - now <= sixtyDaysMs)
+      .map((c) => {
+        const days = Math.ceil((new Date(c.expiresAt!).getTime() - now) / (24 * 60 * 60 * 1000))
+        return { id: c.id, name: c.name, days, isExpired: days < 0 }
+      })
+  }, [certifications])
 
   return (
     <div className="mt-6 flex flex-col gap-6">
@@ -54,11 +71,50 @@ export function StudentCertificationsSkillsSection({
           badge={`${certifications.length} Certifications`}
         />
 
-        <form action={certAddAction} className="mb-6 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-3">
+        {expiryAlerts.length > 0 && (
+          <div
+            role="status"
+            className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-900 dark:text-amber-200"
+          >
+            <div className="flex items-center gap-1.5 font-semibold">
+              <Clock size={14} />
+              <span>Credential Expiry Tracking ({expiryAlerts.length} attention needed)</span>
+            </div>
+            <ul className="mt-1.5 space-y-1">
+              {expiryAlerts.map((a) => (
+                <li key={a.id} className="flex items-center gap-1.5">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  <span>
+                    <strong>{a.name}</strong> —{' '}
+                    {a.isExpired
+                      ? `Expired ${Math.abs(a.days)} day(s) ago`
+                      : `Expires in ${a.days} day(s)`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <form ref={certFormRef} action={certAddAction} className="mb-6 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-3">
+          <FormDraftBanner
+            draftKey="student-certification"
+            formRef={certFormRef}
+            clearWhenSuccess={certAddState.status === 'success'}
+          />
           <div>
             <label htmlFor="cert-name" className={studentLabelClass}>Certificate Name</label>
-            <input id="cert-name" name="name" required className={studentFieldClass} placeholder="AWS Certified Cloud Practitioner" />
+            <input
+              id="cert-name"
+              name="name"
+              required
+              value={draftCertName}
+              onChange={(e) => setDraftCertName(e.target.value)}
+              className={studentFieldClass}
+              placeholder="AWS Certified Cloud Practitioner"
+            />
           </div>
+          <DuplicateRecordSuggestionBanner type="CERTIFICATION" title={draftCertName} />
           <div>
             <label htmlFor="cert-issuer" className={studentLabelClass}>Issuing Organization</label>
             <input id="cert-issuer" name="issuer" className={studentFieldClass} placeholder="Amazon Web Services" />

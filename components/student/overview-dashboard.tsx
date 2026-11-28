@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import type { StudentOverviewData } from '@/lib/server/services/student-overview'
+import type { ExpiringCredentialItem } from '@/lib/server/services/document-intelligence'
 import { KpiCard, ProgressBar, SectionHeader } from '@/components/shared/attainly-ui'
 import { VerificationBadge } from './shared-ui'
 
@@ -26,10 +27,15 @@ export function StudentOverviewDashboard({
   studentName,
   email,
   data,
+  expiringCredentials,
 }: {
   studentName: string
   email: string
   data: StudentOverviewData
+  expiringCredentials?: {
+    expired: ExpiringCredentialItem[]
+    expiringSoon: ExpiringCredentialItem[]
+  }
 }) {
   const { profileSummary, completeness, counts, semesters, recentActivity, notifications } = data
   const latestSem = semesters.length > 0 ? semesters[semesters.length - 1] : null
@@ -47,6 +53,30 @@ export function StudentOverviewDashboard({
 
   return (
     <div className="space-y-6 overflow-x-hidden">
+      {expiringCredentials &&
+        (expiringCredentials.expired.length > 0 || expiringCredentials.expiringSoon.length > 0) && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={15} className="shrink-0" />
+              <span>
+                <strong>Credential Expiry Reminder:</strong>{' '}
+                {expiringCredentials.expired.length > 0
+                  ? `${expiringCredentials.expired.length} expired`
+                  : ''}
+                {expiringCredentials.expired.length > 0 && expiringCredentials.expiringSoon.length > 0
+                  ? ' and '
+                  : ''}
+                {expiringCredentials.expiringSoon.length > 0
+                  ? `${expiringCredentials.expiringSoon.length} expiring within 60 days`
+                  : ''}
+                .
+              </span>
+            </div>
+            <Link href="/student/certifications" className="font-semibold underline">
+              Review Certifications →
+            </Link>
+          </div>
+        )}
       {/* Student Profile Summary Card */}
       <section className="rounded-xl border border-border border-l-4 border-l-primary bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">

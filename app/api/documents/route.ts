@@ -7,6 +7,7 @@ import { getCurrentPrincipal } from '@/lib/server/current-principal'
 import { resolveLocalBlobPath, VercelBlobDocumentStorage } from '@/lib/server/repositories/blob-document-storage'
 import { canAccessDocument, PrismaDocumentRepository } from '@/lib/server/repositories/document-repository'
 import { uploadDocument } from '@/lib/server/services/uploads'
+import { findOwnDocumentBySha256 } from '@/lib/server/services/document-intelligence'
 import { AuthorizationError } from '@/lib/server/authorization'
 import { AuthenticationRequiredError } from '@/lib/server/action-guard'
 import { resolveDepartmentScope } from '@/lib/server/services/admin-command'
@@ -31,9 +32,35 @@ export async function POST(request: NextRequest) {
     const principal = await getCurrentPrincipal()
     const formData = await request.formData()
     const file = formData.get('file')
+    const allowDuplicate = formData.get('allowDuplicate') === 'true'
     if (!(file instanceof File)) return NextResponse.json({ error: 'Choose a document to upload.' }, { status: 400 })
 
     const uploaded = await uploadDocument({ principal, storage, file })
+    if (!allowDuplicate) {
+      const existing = await findOwnDocumentBySha256({
+        institutionId: principal.institutionId,
+        ownerUserId: principal.userId,
+        sha256: uploaded.sha256,
+      })
+      if (existing) {
+        return NextResponse.json(
+          {
+            duplicateDetected: true,
+            existingDocument: {
+              id: existing.id,
+              fileUrl: existing.pathname,
+              originalFilename: existing.originalFilename,
+              mimeType: existing.mimeType,
+              sizeBytes: existing.sizeBytes,
+              version: existing.version,
+              createdAt: existing.createdAt,
+            },
+          },
+          { status: 200 },
+        )
+      }
+    }
+
     const doc = await documentRepository.createDocument({
       institutionId: principal.institutionId,
       ownerUserId: principal.userId,

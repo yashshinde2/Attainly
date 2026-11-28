@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useRef, useState } from 'react'
 import { Edit3, Plus, Users } from 'lucide-react'
 import {
   addCanonicalPublicationAction,
@@ -28,6 +28,10 @@ import {
   studentFieldClass,
   studentLabelClass,
 } from '@/components/student/shared-ui'
+import {
+  DuplicateRecordSuggestionBanner,
+  FormDraftBanner,
+} from '@/components/shared/smart-evidence-uploader'
 
 const initialState: FacultyActionState = { status: 'idle', message: '' }
 
@@ -56,6 +60,9 @@ export function FacultyResearchSection({
   const [patEditState, patEditAction, patEditPending] = useActionState(updateFacultyPatent, initialState)
   const [patDelState, patDelAction] = useActionState(deleteFacultyPatent, initialState)
   const [editingPatId, setEditingPatId] = useState<string | null>(null)
+  const [pubTitle, setPubTitle] = useState('')
+  const [pubDoi, setPubDoi] = useState('')
+  const pubFormRef = useRef<HTMLFormElement>(null)
 
   return (
     <div className="mt-6 flex flex-col gap-6">
@@ -67,10 +74,22 @@ export function FacultyResearchSection({
           badge={`${canonicalPublications.length} Canonical`}
         />
 
-        <form action={pubAddAction} className="mb-6 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-3">
+        <form ref={pubFormRef} action={pubAddAction} className="mb-6 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-3">
+          <FormDraftBanner
+            draftKey="faculty-publication"
+            formRef={pubFormRef}
+            clearWhenSuccess={pubAddState.status === 'success'}
+          />
           <div className="sm:col-span-2">
             <label htmlFor="pub-title" className={studentLabelClass}>Publication / Book Title</label>
-            <input id="pub-title" name="title" required className={studentFieldClass} />
+            <input
+              id="pub-title"
+              name="title"
+              required
+              value={pubTitle}
+              onChange={(e) => setPubTitle(e.target.value)}
+              className={studentFieldClass}
+            />
           </div>
           <div>
             <label htmlFor="pub-type" className={studentLabelClass}>Type</label>
@@ -91,8 +110,16 @@ export function FacultyResearchSection({
           </div>
           <div>
             <label htmlFor="pub-doi" className={studentLabelClass}>DOI (auto-links co-authors)</label>
-            <input id="pub-doi" name="doi" className={studentFieldClass} placeholder="10.1109/..." />
+            <input
+              id="pub-doi"
+              name="doi"
+              value={pubDoi}
+              onChange={(e) => setPubDoi(e.target.value)}
+              className={studentFieldClass}
+              placeholder="10.1109/..."
+            />
           </div>
+          <DuplicateRecordSuggestionBanner type="PUBLICATION" title={pubTitle} doi={pubDoi} />
           <div>
             <label htmlFor="pub-issn" className={studentLabelClass}>ISSN / ISBN</label>
             <input id="pub-issn" name="issnOrIsbn" className={studentFieldClass} />

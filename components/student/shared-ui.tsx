@@ -16,9 +16,12 @@ import {
 import type { StudentActionState } from '@/app/actions/student'
 import {
   DocumentPreviewDrawer,
-  ProgressBar,
   VerificationBadge as SharedVerificationBadge,
 } from '@/components/shared/attainly-ui'
+import {
+  SmartMultiDocumentField,
+  SmartSingleDocumentField,
+} from '@/components/shared/smart-evidence-uploader'
 
 export const studentFieldClass =
   'mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20'
@@ -162,182 +165,22 @@ export function DocumentPreviewLink({
   )
 }
 
-export function SingleDocumentUploadField({
-  id,
-  name,
-  label = 'Supporting Document (PDF / PNG / JPG)',
-  defaultValue = '',
-}: {
+export function SingleDocumentUploadField(props: {
   id: string
   name: string
   label?: string
   defaultValue?: string
 }) {
-  const [fileUrl, setFileUrl] = useState(defaultValue)
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [error, setError] = useState('')
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setProgress(25)
-    setError('')
-    const fd = new FormData()
-    fd.append('file', file)
-    try {
-      const res = await fetch('/api/documents', { method: 'POST', body: fd })
-      setProgress(80)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Upload failed')
-      setFileUrl(data.fileUrl)
-      setProgress(100)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
-      setProgress(0)
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  return (
-    <div>
-      <label htmlFor={id} className={studentLabelClass}>
-        {label}
-      </label>
-      <input type="hidden" name={name} value={fileUrl} />
-      <div className="mt-1.5 flex flex-wrap items-center gap-3">
-        <label
-          htmlFor={id}
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-2 text-xs font-medium text-foreground transition hover:bg-muted focus-within:ring-2 focus-within:ring-ring"
-        >
-          {uploading ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-          {uploading ? 'Uploading…' : fileUrl ? 'Replace file' : 'Choose file'}
-        </label>
-        <input
-          id={id}
-          type="file"
-          accept=".pdf,.png,.jpg,.jpeg"
-          onChange={handleUpload}
-          className="sr-only"
-        />
-        {fileUrl && <DocumentPreviewLink fileUrl={fileUrl} label="Preview uploaded file" />}
-        {fileUrl && (
-          <button
-            type="button"
-            onClick={() => {
-              setFileUrl('')
-              setProgress(0)
-            }}
-            className="text-xs font-medium text-muted-foreground hover:text-destructive"
-          >
-            Remove
-          </button>
-        )}
-      </div>
-      {uploading && (
-        <div className="mt-2 max-w-xs">
-          <ProgressBar value={progress} label="Uploading evidence…" />
-        </div>
-      )}
-      {error && (
-        <p role="alert" className="mt-1.5 text-xs font-medium text-[var(--status-rejected)]">
-          {error}
-        </p>
-      )}
-    </div>
-  )
+  return <SmartSingleDocumentField {...props} />
 }
 
-export function MultiDocumentUploadField({
-  id,
-  name = 'documentUrls',
-  label = 'Supporting Documents (multiple allowed)',
-  defaultUrls = [],
-}: {
+export function MultiDocumentUploadField(props: {
   id: string
   name?: string
   label?: string
   defaultUrls?: string[]
 }) {
-  const [urls, setUrls] = useState<string[]>(defaultUrls)
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState('')
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    if (files.length === 0) return
-    setUploading(true)
-    setError('')
-    try {
-      const uploaded: string[] = []
-      for (const file of files) {
-        const fd = new FormData()
-        fd.append('file', file)
-        const res = await fetch('/api/documents', { method: 'POST', body: fd })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || `Failed to upload ${file.name}`)
-        uploaded.push(data.fileUrl)
-      }
-      setUrls((prev) => [...prev, ...uploaded])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  return (
-    <div>
-      <label htmlFor={id} className={studentLabelClass}>
-        {label}
-      </label>
-      <input type="hidden" name={name} value={JSON.stringify(urls)} />
-      <div className="mt-1.5 flex flex-wrap items-center gap-3">
-        <label
-          htmlFor={id}
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-2 text-xs font-medium text-foreground transition hover:bg-muted"
-        >
-          {uploading ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-          {uploading ? 'Uploading…' : 'Attach files'}
-        </label>
-        <input
-          id={id}
-          type="file"
-          multiple
-          accept=".pdf,.png,.jpg,.jpeg"
-          onChange={handleUpload}
-          className="sr-only"
-        />
-      </div>
-      {urls.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {urls.map((u, idx) => (
-            <span
-              key={u}
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-1 text-xs"
-            >
-              <DocumentPreviewLink fileUrl={u} label={`Document ${idx + 1}`} />
-              <button
-                type="button"
-                aria-label={`Remove document ${idx + 1}`}
-                onClick={() => setUrls((prev) => prev.filter((item) => item !== u))}
-                className="text-muted-foreground hover:text-destructive"
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      {error && (
-        <p role="alert" className="mt-1.5 text-xs font-medium text-[var(--status-rejected)]">
-          {error}
-        </p>
-      )}
-    </div>
-  )
+  return <SmartMultiDocumentField {...props} />
 }
 
 export function ConfirmDeleteForm({

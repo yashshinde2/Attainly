@@ -6,6 +6,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Download,
+  ExternalLink,
   FileQuestion,
   Loader2,
   Search,
@@ -523,16 +525,33 @@ export function DocumentPreviewDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-foreground/30 backdrop-blur-[1px]" role="dialog" aria-modal="true" aria-label={title}>
       <div className="flex h-full w-full max-w-2xl flex-col border-l border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-4">
           <h3 className="truncate text-sm font-semibold text-foreground">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close document preview"
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <a
+              href={documentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted"
+            >
+              <ExternalLink size={12} /> New Tab
+            </a>
+            <a
+              href={documentUrl.replace('disposition=inline', 'disposition=attachment')}
+              download
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted"
+            >
+              <Download size={12} /> Download
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close document preview"
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-auto bg-muted/30 p-4">
           {isImage ? (
